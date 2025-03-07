@@ -1,0 +1,22 @@
+# Precompiled Headers
+*.gch
+*.pch
+
+# Visual Studio files and folder
+.vs/
+.vscode/
+**.sln
+**.vcxproj
+**.vcxproj.filters
+**.vcxproj.user
+
+# XCode files and folder
+**.xcworkspace
+**.xcodeproj
+**.DS_STORE
+
+# Binaries
+/bin/
+
+# CMake
+/build
