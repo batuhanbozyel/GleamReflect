@@ -1,42 +1,70 @@
-#include "ReflectionGenerator.h"
+#include "ReflectionParser.h"
+#include <clang/Frontend/FrontendActions.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
 
 using namespace clang::tooling;
 using namespace llvm;
+using namespace Gleam;
 
-static cl::OptionCategory ReflectionToolCategory("Reflection Generator Options");
-static cl::opt<std::string> OutputDir("output-dir",
-                                      cl::desc("Specify output directory for generated files"),
-                                      cl::value_desc("directory"),
-                                      cl::Required,
-                                      cl::cat(ReflectionToolCategory));
-
-struct DumpASTAction : public ASTFrontendAction
+// AST Consumer for Clang
+class ReflectionASTConsumer : public clang::ASTConsumer
 {
-	std::unique_ptr<ASTConsumer>
-	CreateASTConsumer(CompilerInstance &ci, StringRef inFile) override
-	{
-		return clang::CreateASTDumper(
-			nullptr,/* dump to stdout */
-			"", /* no filter */
-			true, /* dump decls */
-			true, /* deserialize */
-			false /* don't dump lookups */
-		);
-	}
+public:
+    explicit ReflectionASTConsumer(ReflectionParser& parser)
+        : mParser(parser)
+    {
+        
+    }
+    
+    void HandleTranslationUnit(clang::ASTContext& context) override
+    {
+        mParser.ParseAST(context);
+    }
+    
+private:
+    ReflectionParser& mParser;
 };
+
+// Frontend Action for Clang
+class ReflectionFrontendAction : public clang::ASTFrontendAction
+{
+public:
+    ReflectionFrontendAction(ReflectionParser& parser, const std::string& outputDir)
+        : mParser(parser), mOutputDir(outputDir)
+    {
+        
+    }
+    
+    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& compiler, llvm::StringRef) override
+    {
+        return std::make_unique<ReflectionASTConsumer>(mParser);
+    }
+    
+    void EndSourceFileAction() override
+    {
+        mParser.GenerateOutput(mOutputDir);
+    }
+    
+private:
+    ReflectionParser& mParser;
+    std::string mOutputDir;
+};
+
+static llvm::cl::OptionCategory CppReflectionCategory("C++ Reflection");
+static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 int main(int argc, const char **argv)
 {
-    CommonOptionsParser optionsParser(argc, argv, ReflectionToolCategory);
-    ClangTool Tool(optionsParser.getCompilations(), optionsParser.getSourcePathList());
-    
-    // Set up the reflection parser
-    Gleam::ReflectionParser parser;
-    Gleam::ReflectionFrontendAction frontendAction(parser, OutputDir);
-    
-    // Run the Clang tool
-    return Tool.run(newFrontendActionFactory(&frontendAction).get());
+    auto optionsParser = CommonOptionsParser::create(argc, argv, CppReflectionCategory);
+    if (!optionsParser)
+    {
+        llvm::errs() << optionsParser.takeError();
+        return 1;
+    }
+    CommonOptionsParser& parser = optionsParser.get();
+    ClangTool tool(parser.getCompilations(),
+                   parser.getSourcePathList());
+    return tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
 }
