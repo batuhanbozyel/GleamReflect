@@ -66,5 +66,12 @@ int main(int argc, const char **argv)
     CommonOptionsParser& parser = optionsParser.get();
     ClangTool tool(parser.getCompilations(),
                    parser.getSourcePathList());
+    
+    tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args)
+    {
+        clang::tooling::CommandLineArguments adjustedArgs = args;
+        adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
+        return adjustedArgs;
+    });
     return tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
 }
