@@ -4,11 +4,8 @@
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
 
-using namespace clang::tooling;
-using namespace llvm;
 using namespace Gleam;
 
-// AST Consumer for Clang
 class ReflectionASTConsumer : public clang::ASTConsumer
 {
 public:
@@ -27,17 +24,17 @@ private:
     ReflectionParser& mParser;
 };
 
-// Frontend Action for Clang
 class ReflectionFrontendAction : public clang::ASTFrontendAction
 {
 public:
-    ReflectionFrontendAction(ReflectionParser& parser, const std::string& outputDir)
-        : mParser(parser), mOutputDir(outputDir)
+    ReflectionFrontendAction(const std::string& outputDir)
+        : mParser()
+        , mOutputDir(outputDir)
     {
         
     }
     
-    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& compiler, llvm::StringRef) override
+    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& compiler, llvm::StringRef file) override
     {
         return std::make_unique<ReflectionASTConsumer>(mParser);
     }
@@ -48,30 +45,48 @@ public:
     }
     
 private:
-    ReflectionParser& mParser;
+    ReflectionParser mParser;
     std::string mOutputDir;
 };
 
+class ReflectionActionFactory : public clang::tooling::FrontendActionFactory
+{
+ public:
+    explicit ReflectionActionFactory(const std::string& outputPath)
+        : mOutputPath(outputPath)
+    {
+        
+    }
+
+    std::unique_ptr<clang::FrontendAction> create() override
+    {
+        return std::make_unique<ReflectionFrontendAction>(mOutputPath);
+    }
+
+ private:
+    std::string mOutputPath;
+};
+
 static llvm::cl::OptionCategory CppReflectionCategory("C++ Reflection");
-static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
+static llvm::cl::extrahelp CommonHelp(clang::tooling::CommonOptionsParser::HelpMessage);
 
 int main(int argc, const char **argv)
 {
-    auto optionsParser = CommonOptionsParser::create(argc, argv, CppReflectionCategory);
+    auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, CppReflectionCategory);
     if (!optionsParser)
     {
         llvm::errs() << optionsParser.takeError();
         return 1;
     }
-    CommonOptionsParser& parser = optionsParser.get();
-    ClangTool tool(parser.getCompilations(),
-                   parser.getSourcePathList());
+    clang::tooling::CommonOptionsParser& parser = optionsParser.get();
+    clang::tooling::ClangTool tool(parser.getCompilations(),
+                                   parser.getSourcePathList());
     
-    tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args)
+    tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args, llvm::StringRef filename) -> clang::tooling::CommandLineArguments
     {
         clang::tooling::CommandLineArguments adjustedArgs = args;
         adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
         return adjustedArgs;
     });
-    return tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
+    return tool.run(clang::tooling::newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
 }
