@@ -15,3 +15,7 @@
 #define GFUNCTION(GuidStr, ...)
 #define GFIELD(GuidStr, ...)
 #endif
+
+#define GLEAM_ATTRIBUTE(tag, ...)                                                                   \
+    struct AttributeBase_##tag { static constexpr auto description = AttributeDescription(#tag); }; \
+    struct tag : AttributeBase_##tag

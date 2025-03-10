@@ -7,6 +7,7 @@
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/raw_ostream.h>
+#include <cassert>
 #include <regex>
 
 namespace Gleam {
@@ -16,7 +17,7 @@ ReflectionParser::ReflectionParser()
     
 }
 
-bool ReflectionParser::ParseAST(clang::ASTContext& context)
+void ReflectionParser::ParseAST(clang::ASTContext& context)
 {
     for (const auto* decl : context.getTranslationUnitDecl()->decls())
     {
@@ -35,7 +36,11 @@ bool ReflectionParser::ParseAST(clang::ASTContext& context)
             }
         }
     }
-    return true;
+}
+
+void ReflectionParser::GenerateOutput(const std::string& outputDir)
+{
+    
 }
 
 void ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
@@ -76,40 +81,85 @@ void ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 
 void ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
 {
-//    std::vector<Attribute> attributes = ParseAttributes(recordDecl);
-//    std::string guid = ExtractGuid(attributes);
-//    
-//    if (guid.empty())
-//    {
-//        return; // Skip if no GUID found
-//    }
-//    
-//    StructInfo structInfo(recordDecl->getNameAsString(),
-//                         recordDecl->getQualifiedNameAsString(),
-//                         guid);
-//    structInfo.attributes = attributes;
-//    
-//    // Process fields
-//    for (const auto* field : recordDecl->fields())
-//    {
-//        std::vector<Attribute> fieldAttributes = ParseAttributes(field);
-//        std::string fieldGuid = ExtractGuid(fieldAttributes);
-//        
-//        if (fieldGuid.empty())
-//        {
-//            continue; // Skip if no GUID found
-//        }
-//        
-//        FieldInfo fieldInfo(field->getNameAsString(),
-//                            field->getType().getAsString(),
-//                            fieldGuid);
-//        fieldInfo.attributes = fieldAttributes;
-//        
-//        structInfo.fields.push_back(fieldInfo);
-//    }
-//    
-//    database.AddStruct(structInfo);
+    const auto& recordAttribs = ParseAttributes(recordDecl);
+    const auto& recordGuid = ExtractGuid(recordAttribs);
+    assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
+    
+    // Process fields
+    for (const auto* field : recordDecl->fields())
+    {
+        const auto& attribs = ParseAttributes(field);
+        const auto& guid = ExtractGuid(attribs);
+        assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
+    }
+    
+    // Process functions
+    for (const auto* method : recordDecl->methods())
+    {
+        const auto& attribs = ParseAttributes(method);
+        const auto& guid = ExtractGuid(attribs);
+        assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
+    }
 }
 
+std::vector<AttributePair> ReflectionParser::ParseAttributes(const clang::Decl* decl)
+{
+    std::vector<AttributePair> attributes;
+    for (const auto* attr : decl->attrs())
+    {
+        if (auto* annotateAttr = llvm::dyn_cast<clang::AnnotateAttr>(attr))
+        {
+            std::string annotation = annotateAttr->getAnnotation().str();
+            if (annotation.find("GCLASS") == 0 ||
+                annotation.find("GSTRUCT") == 0 ||
+                annotation.find("GENUM") == 0 ||
+                annotation.find("GITEM") == 0 ||
+                annotation.find("GFIELD") == 0 ||
+                annotation.find("GFUNCTION") == 0)
+            {
+                std::regex attrRegex(R"(\b([A-Za-z0-9_]+)(?:\(([^)]*)\))?)");
+                std::sregex_iterator it(annotation.begin(), annotation.end(), attrRegex);
+                std::sregex_iterator end;
+                
+                for (; it != end; ++it)
+                {
+                    std::string attrName = (*it)[1].str();
+                    std::string argsStr = (*it)[2].str();
+                    attributes.emplace_back(AttributePair{
+                        .description = Reflection::AttributeDescription(attrName.c_str()),
+                        .arguments = argsStr });
+                }
+            }
+        }
+    }
+    return attributes;
+}
+
+Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const std::vector<AttributePair>& attributes)
+{
+    for (const auto& attr : attributes)
+    {
+        if (attr.description.hash == Reflection::Utils::HashString("Guid"))
+        {
+            std::regex guidRegex("\\{?([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})\\}?");
+            std::smatch matches;
+            if (std::regex_search(attr.arguments, matches, guidRegex) && matches.size() == 6)
+            {
+                // Format the GUID in the standard format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                std::string formattedGuid =
+                    matches[1].str() + "-" +
+                    matches[2].str() + "-" +
+                    matches[3].str() + "-" +
+                    matches[4].str() + "-" +
+                    matches[5].str();
+                
+                return Reflection::Attribute::Guid(formattedGuid.c_str());
+            }
+            // No valid GUID format is found
+            return Reflection::Attribute::Guid::InvalidGuid();
+        }
+    }
+    return Reflection::Attribute::Guid::InvalidGuid();
+}
 
 } // namespace Gleam
