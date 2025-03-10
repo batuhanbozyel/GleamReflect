@@ -2,6 +2,9 @@
 #include "Utils.h"
 #include "Macro.h"
 
+#include <string>
+#include <regex>
+
 namespace Gleam::Reflection {
 
 struct AttributeDescription
@@ -99,6 +102,31 @@ GLEAM_ATTRIBUTE(Guid)
     {
         
     }
+
+    explicit constexpr Guid(const std::string& args)
+        : Guid()
+    {
+        std::regex guidRegex("\\{?([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})\\}?");
+        std::smatch matches;
+        if (std::regex_search(args, matches, guidRegex) && matches.size() == 6)
+        {
+            // Format the GUID in the standard format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+            std::string formattedGuid =
+                matches[1].str() + "-" +
+                matches[2].str() + "-" +
+                matches[3].str() + "-" +
+                matches[4].str() + "-" +
+                matches[5].str();
+            
+            *this = Guid(formattedGuid.c_str());
+        }
+    }
+
+    explicit constexpr Guid(const Guid&) = default;
+    explicit constexpr Guid& operator=(const Guid&) noexcept = default;
+
+    explicit constexpr Guid(Guid&&) = default;
+    explicit constexpr Guid& operator=(Guid&&) noexcept = default;
     
     static constexpr Guid InvalidGuid()
     {

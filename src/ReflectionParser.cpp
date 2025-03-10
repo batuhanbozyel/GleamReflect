@@ -141,22 +141,7 @@ Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const std::vector<Attr
     {
         if (attr.description.hash == Reflection::Utils::HashString("Guid"))
         {
-            std::regex guidRegex("\\{?([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})\\}?");
-            std::smatch matches;
-            if (std::regex_search(attr.arguments, matches, guidRegex) && matches.size() == 6)
-            {
-                // Format the GUID in the standard format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-                std::string formattedGuid =
-                    matches[1].str() + "-" +
-                    matches[2].str() + "-" +
-                    matches[3].str() + "-" +
-                    matches[4].str() + "-" +
-                    matches[5].str();
-                
-                return Reflection::Attribute::Guid(formattedGuid.c_str());
-            }
-            // No valid GUID format is found
-            return Reflection::Attribute::Guid::InvalidGuid();
+            return Reflection::Attribute::Guid(attr.arguments);
         }
     }
     return Reflection::Attribute::Guid::InvalidGuid();
