@@ -81,56 +81,61 @@ void ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 
 void ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
 {
-    const auto& recordAttribs = ParseAttributes(recordDecl);
-    const auto& recordGuid = ExtractGuid(recordAttribs);
-    assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
+    auto* recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
+    std::string recordAnnotation = recordAnnotateAttr->getAnnotation().str();
     
-    // Process fields
-    for (const auto* field : recordDecl->fields())
+    if (recordAnnotation.find("GCLASS") || recordAnnotation.find("GSTRUCT"))
     {
-        const auto& attribs = ParseAttributes(field);
-        const auto& guid = ExtractGuid(attribs);
-        assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
-    }
-    
-    // Process functions
-    for (const auto* method : recordDecl->methods())
-    {
-        const auto& attribs = ParseAttributes(method);
-        const auto& guid = ExtractGuid(attribs);
-        assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
+        const auto& recordAttribs = ParseAttributes(recordAnnotation);
+        const auto& recordGuid = ExtractGuid(recordAttribs);
+        assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
+        
+        // Process fields
+        for (const auto* field : recordDecl->fields())
+        {
+            auto* annotateAttr = field->getAttr<clang::AnnotateAttr>();
+            std::string annotation = annotateAttr->getAnnotation().str();
+            
+            if (annotation.find("GFIELD"))
+            {
+                const auto& attribs = ParseAttributes(annotation);
+                const auto& guid = ExtractGuid(attribs);
+                assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
+            }
+        }
+        
+        // Process functions
+        for (const auto* method : recordDecl->methods())
+        {
+            auto* annotateAttr = method->getAttr<clang::AnnotateAttr>();
+            std::string annotation = annotateAttr->getAnnotation().str();
+            
+            if (annotation.find("GFUNCTION"))
+            {
+                const auto& attribs = ParseAttributes(annotation);
+                const auto& guid = ExtractGuid(attribs);
+                assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
+            }
+        }
+        
+        Reflection::ClassDescription classDesc(recordDecl->getName(), recordGuid);
     }
 }
 
-std::vector<AttributePair> ReflectionParser::ParseAttributes(const clang::Decl* decl)
+std::vector<AttributePair> ReflectionParser::ParseAttributes(const std::string& annotation)
 {
+    std::regex attrRegex(R"(\b([A-Za-z0-9_]+)(?:\(([^)]*)\))?)");
+    std::sregex_iterator it(annotation.begin(), annotation.end(), attrRegex);
+    std::sregex_iterator end;
+ 
     std::vector<AttributePair> attributes;
-    for (const auto* attr : decl->attrs())
+    for (; it != end; ++it)
     {
-        if (auto* annotateAttr = llvm::dyn_cast<clang::AnnotateAttr>(attr))
-        {
-            std::string annotation = annotateAttr->getAnnotation().str();
-            if (annotation.find("GCLASS") == 0 ||
-                annotation.find("GSTRUCT") == 0 ||
-                annotation.find("GENUM") == 0 ||
-                annotation.find("GITEM") == 0 ||
-                annotation.find("GFIELD") == 0 ||
-                annotation.find("GFUNCTION") == 0)
-            {
-                std::regex attrRegex(R"(\b([A-Za-z0-9_]+)(?:\(([^)]*)\))?)");
-                std::sregex_iterator it(annotation.begin(), annotation.end(), attrRegex);
-                std::sregex_iterator end;
-                
-                for (; it != end; ++it)
-                {
-                    std::string attrName = (*it)[1].str();
-                    std::string argsStr = (*it)[2].str();
-                    attributes.emplace_back(AttributePair{
-                        .description = Reflection::AttributeDescription(attrName.c_str()),
-                        .arguments = argsStr });
-                }
-            }
-        }
+        std::string attrName = (*it)[1].str();
+        std::string argsStr = (*it)[2].str();
+        attributes.emplace_back(AttributePair{
+            .description = Reflection::AttributeDescription(attrName.c_str()),
+            .arguments = argsStr });
     }
     return attributes;
 }

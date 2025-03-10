@@ -37,7 +37,7 @@ private:
     void HandleEnumDecl(const clang::EnumDecl* enumDecl);
     void HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
     
-    std::vector<AttributePair> ParseAttributes(const clang::Decl* decl);
+    std::vector<AttributePair> ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const std::vector<AttributePair>& attributes);
 };
 

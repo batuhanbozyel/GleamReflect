@@ -1,4 +1,5 @@
 #pragma once
+#include <string_view>
 #include <cstdint>
 #include <cstddef>
 #include <cassert>
@@ -162,7 +163,7 @@ public:
         return mGuid;
     }
     
-    constexpr const char* ResolveName() const
+    constexpr const std::string_view ResolveName() const
     {
         return mName;
     }
@@ -202,7 +203,7 @@ private:
     
     Field mField;
     FieldType mType;
-    const char* mName;
+    const std::string_view mName;
     Attribute::Guid mGuid;
     //std::vector<AttributePair> mAttributes;
 };
@@ -216,7 +217,7 @@ public:
         return mGuid;
     }
     
-    constexpr const char* ResolveName() const
+    constexpr const std::string_view ResolveName() const
     {
         return mName;
     }
@@ -255,7 +256,7 @@ public:
 private:
     
     size_t mSize;
-    const char* mName;
+    const std::string_view mName;
     Attribute::Guid mGuid;
     //std::vector<AttributePair> mAttributes;
     
@@ -264,13 +265,20 @@ private:
 class ClassDescription
 {
 public:
+    
+    constexpr ClassDescription(const std::string_view name, const Attribute::Guid& guid)
+        : mName(name)
+        , mGuid(guid)
+    {
+        
+    }
 
     constexpr const Attribute::Guid& Guid() const
     {
         return mGuid;
     }
     
-    constexpr const char* ResolveName() const
+    constexpr const std::string_view ResolveName() const
     {
         return mName;
     }
@@ -324,7 +332,7 @@ public:
 private:
     
     size_t mSize;
-    const char* mName;
+    const std::string_view mName;
     std::vector<FieldDescription> mFields;
     std::vector<ClassDescription> mBaseClasses;
     
@@ -340,13 +348,13 @@ public:
     
     ArrayDescription() = default;
     ArrayDescription(const ArrayDescription&) = default;
-    ArrayDescription(const char* name, FieldType type, uint32_t hash, size_t size, size_t stride)
+    ArrayDescription(const std::string_view name, FieldType type, uint32_t hash, size_t size, size_t stride)
         : mName(name), mType(type), mHash(hash), mSize(size), mStride(stride)
     {
         
     }
     
-    constexpr const char* ResolveName() const
+    constexpr const std::string_view ResolveName() const
     {
         return mName;
     }
@@ -377,7 +385,7 @@ private:
     size_t mSize = 0;
     size_t mStride = 0;
     FieldType mType = FieldType::Invalid;
-    const char* mName = "";
+    const std::string_view mName = "";
     
 };
 
