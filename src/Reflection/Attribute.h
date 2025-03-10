@@ -103,7 +103,7 @@ GLEAM_ATTRIBUTE(Guid)
         
     }
 
-    explicit constexpr Guid(const std::string& args)
+    explicit Guid(const std::string& args)
         : Guid()
     {
         std::regex guidRegex("\\{?([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})\\}?");
@@ -122,11 +122,11 @@ GLEAM_ATTRIBUTE(Guid)
         }
     }
 
-    explicit constexpr Guid(const Guid&) = default;
-    explicit constexpr Guid& operator=(const Guid&) noexcept = default;
+    constexpr Guid(const Guid&) = default;
+    constexpr Guid& operator=(const Guid&) noexcept = default;
 
-    explicit constexpr Guid(Guid&&) = default;
-    explicit constexpr Guid& operator=(Guid&&) noexcept = default;
+    constexpr Guid(Guid&&) = default;
+    constexpr Guid& operator=(Guid&&) noexcept = default;
     
     static constexpr Guid InvalidGuid()
     {
