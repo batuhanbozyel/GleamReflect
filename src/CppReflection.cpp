@@ -4,6 +4,8 @@
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
 
+#include <filesystem>
+
 using namespace Gleam;
 
 class ReflectionASTConsumer : public clang::ASTConsumer
@@ -21,15 +23,16 @@ public:
     }
     
 private:
+    
     ReflectionParser& mParser;
 };
 
 class ReflectionFrontendAction : public clang::ASTFrontendAction
 {
 public:
-    ReflectionFrontendAction(const std::string& outputDir)
-        : mParser()
-        , mOutputDir(outputDir)
+    
+    ReflectionFrontendAction(const std::filesystem::path& outputDir)
+        : mOutputDir(outputDir)
     {
         
     }
@@ -45,26 +48,30 @@ public:
     }
     
 private:
+    
     ReflectionParser mParser;
-    std::string mOutputDir;
+    std::filesystem::path mOutputDir;
 };
 
-class ReflectionActionFactory : public clang::tooling::FrontendActionFactory
+class ReflectionFrontendActionFactory : public clang::tooling::FrontendActionFactory
 {
- public:
-    explicit ReflectionActionFactory(const std::string& outputPath)
-        : mOutputPath(outputPath)
+public:
+    
+    ReflectionFrontendActionFactory(const std::filesystem::path& outputDir)
+        : mOutputDir(outputDir)
     {
         
     }
-
-    std::unique_ptr<clang::FrontendAction> create() override
+    
+    virtual std::unique_ptr<clang::FrontendAction> create() override
     {
-        return std::make_unique<ReflectionFrontendAction>(mOutputPath);
+        return std::make_unique<ReflectionFrontendAction>(mOutputDir);
     }
-
- private:
-    std::string mOutputPath;
+    
+private:
+    
+    std::filesystem::path mOutputDir;
+    
 };
 
 static llvm::cl::OptionCategory CppReflectionCategory("C++ Reflection");
@@ -88,5 +95,8 @@ int main(int argc, const char **argv)
         adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
         return adjustedArgs;
     });
-    return tool.run(clang::tooling::newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
+    
+    std::filesystem::path outputDir = std::filesystem::current_path();
+    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(outputDir);
+    return tool.run(frontendActionFactory.get());
 }

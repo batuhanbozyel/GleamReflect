@@ -13,6 +13,7 @@
 namespace Gleam {
 
 ReflectionParser::ReflectionParser()
+    : mDatabase()
 {
     
 }
@@ -38,12 +39,12 @@ void ReflectionParser::ParseAST(clang::ASTContext& context)
     }
 }
 
-void ReflectionParser::GenerateOutput(const std::string& outputDir)
+void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 {
     
 }
 
-ReflectionParser::EnumMap::iterator ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
+Reflection::Database::EnumMap::iterator ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 {
     auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
@@ -54,10 +55,10 @@ ReflectionParser::EnumMap::iterator ReflectionParser::HandleEnumDecl(const clang
         const auto& guid = ExtractGuid(attributes);
         assert(guid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum is missing GUID attribute");
         
-        auto it = mGuidToEnum.find(guid);
-        if (it != mGuidToEnum.end())
+        auto it = mDatabase.mGuidToEnum.find(guid);
+        if (it != mDatabase.mGuidToEnum.end())
         {
-            return it;
+            return it; // already processed
         }
         
         Reflection::EnumDescription enumDesc(enumDecl->getName(), guid);
@@ -82,12 +83,12 @@ ReflectionParser::EnumMap::iterator ReflectionParser::HandleEnumDecl(const clang
                 enumDesc.mCases.emplace_back(itemDesc);
             }
         }
-        return mGuidToEnum.emplace_hint(mGuidToEnum.end(), guid, enumDesc);
+        return mDatabase.mGuidToEnum.emplace_hint(mDatabase.mGuidToEnum.end(), guid, enumDesc);
     }
-    return mGuidToEnum.end();
+    return mDatabase.mGuidToEnum.end();
 }
 
-ReflectionParser::ClassMap::iterator ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
+Reflection::Database::ClassMap::iterator ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
 {
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
     auto recordAnnotation = recordAnnotateAttr->getAnnotation().str();
@@ -98,8 +99,8 @@ ReflectionParser::ClassMap::iterator ReflectionParser::HandleRecordDecl(const cl
         const auto& recordGuid = ExtractGuid(recordAttribs);
         assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
         
-        auto it = mGuidToClass.find(recordGuid);
-        if (it != mGuidToClass.end())
+        auto it = mDatabase.mGuidToClass.find(recordGuid);
+        if (it != mDatabase.mGuidToClass.end())
         {
             return it; // already processed;
         }
@@ -113,7 +114,7 @@ ReflectionParser::ClassMap::iterator ReflectionParser::HandleRecordDecl(const cl
             if (baseRecord && baseRecord->hasAttr<clang::AnnotateAttr>() && baseRecord->isCompleteDefinition())
             {
                 auto baseIt = HandleRecordDecl(baseRecord);
-                if (baseIt != mGuidToClass.end())
+                if (baseIt != mDatabase.mGuidToClass.end())
                 {
                     classDesc.mBaseClasses.emplace_back(baseIt->second);
                 }
@@ -239,9 +240,9 @@ ReflectionParser::ClassMap::iterator ReflectionParser::HandleRecordDecl(const cl
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
             }
         }
-        return mGuidToClass.emplace_hint(mGuidToClass.end(), recordGuid, classDesc);
+        return mDatabase.mGuidToClass.emplace_hint(mDatabase.mGuidToClass.end(), recordGuid, classDesc);
     }
-    return mGuidToClass.end();
+    return mDatabase.mGuidToClass.end();
 }
 
 std::vector<AttributePair> ReflectionParser::ParseAttributes(const std::string& annotation)

@@ -1,4 +1,6 @@
 #pragma once
+#include "Attribute.h"
+
 #include <string_view>
 #include <cstdint>
 #include <cstddef>

@@ -1,13 +1,8 @@
 #pragma once
-#include "Reflection/Attribute.h"
-#include "Reflection/Meta.h"
+#include "Reflection/Database.h"
 
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <memory>
-#include <functional>
-#include <fstream>
 #include <filesystem>
 
 namespace clang {
@@ -28,23 +23,19 @@ struct AttributePair
 
 class ReflectionParser
 {
-    using EnumMap = std::unordered_map<Reflection::Attribute::Guid, Reflection::EnumDescription>;
-    using ClassMap = std::unordered_map<Reflection::Attribute::Guid, Reflection::ClassDescription>;
 public:
     ReflectionParser();
     void ParseAST(clang::ASTContext& context);
-    void GenerateOutput(const std::string& outputDir);
+    void GenerateOutput(const std::filesystem::path& outputDir);
     
 private:
-    EnumMap::iterator HandleEnumDecl(const clang::EnumDecl* enumDecl);
-    ClassMap::iterator HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
+    Reflection::Database::EnumMap::iterator HandleEnumDecl(const clang::EnumDecl* enumDecl);
+    Reflection::Database::ClassMap::iterator HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
     
     std::vector<AttributePair> ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const std::vector<AttributePair>& attributes);
-    
-    // TODO: move these to Database
-    EnumMap mGuidToEnum;
-    ClassMap mGuidToClass;
+private:
+    Reflection::Database mDatabase;
 };
 
 } // namespace Gleam

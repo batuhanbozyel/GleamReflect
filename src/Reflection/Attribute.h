@@ -159,7 +159,7 @@ GLEAM_ATTRIBUTE(Version)
     uint32_t version;
     
     explicit constexpr Version(uint32_t version)
-    : version(version)
+        : version(version)
     {
         
     }
@@ -175,10 +175,10 @@ GLEAM_ATTRIBUTE(Serializable)
 
 GLEAM_ATTRIBUTE(PrettyName)
 {
-    const char* name;
+    std::string_view name;
     
-    explicit constexpr PrettyName(const char* name)
-    : name(name)
+    explicit constexpr PrettyName(const std::string_view name)
+        : name(name)
     {
         
     }
