@@ -43,46 +43,54 @@ void ReflectionParser::GenerateOutput(const std::string& outputDir)
     
 }
 
-void ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
+ReflectionParser::EnumMap::iterator ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 {
-//    std::vector<Attribute> attributes = ParseAttributes(enumDecl);
-//    std::string guid = ExtractGuid(attributes);
-//    
-//    if (guid.empty())
-//    {
-//        return; // Skip if no GUID found
-//    }
-//    
-//    EnumInfo enumInfo(enumDecl->getNameAsString(),
-//                      enumDecl->getQualifiedNameAsString(),
-//                      guid);
-//    enumInfo.attributes = attributes;
-//    
-//    // Process enum values
-//    for (const auto* enumConstant : enumDecl->enumerators())
-//    {
-//        std::vector<Attribute> valueAttributes = ParseAttributes(enumConstant);
-//        std::string valueGuid = ExtractGuid(valueAttributes);
-//        
-//        if (valueGuid.empty())
-//        {
-//            continue; // Skip if no GUID found
-//        }
-//        
-//        int value = enumConstant->getInitVal().getExtValue();
-//        EnumValueInfo valueInfo(enumConstant->getNameAsString(), value, valueGuid);
-//        valueInfo.attributes = valueAttributes;
-//        
-//        enumInfo.values.push_back(valueInfo);
-//    }
-//    
-//    database.AddEnum(enumInfo);
+    auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
+    auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
+    
+    if (enumAnnotation.find("GENUM"))
+    {
+        const auto& attributes = ParseAttributes(enumAnnotation);
+        const auto& guid = ExtractGuid(attributes);
+        assert(guid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum is missing GUID attribute");
+        
+        auto it = mGuidToEnum.find(guid);
+        if (it != mGuidToEnum.end())
+        {
+            return it;
+        }
+        
+        Reflection::EnumDescription enumDesc(enumDecl->getName(), guid);
+        for (const auto enumItem : enumDecl->enumerators())
+        {
+            if (enumItem->hasAttr<clang::AnnotateAttr>() == false)
+            {
+                continue; // item is not reflected
+            }
+            
+            auto itemAnnotateAttr = enumItem->getAttr<clang::AnnotateAttr>();
+            auto itemAnnotation = itemAnnotateAttr->getAnnotation().str();
+            
+            if (itemAnnotation.find("GITEM"))
+            {
+                const auto& itemAttributes = ParseAttributes(itemAnnotation);
+                const auto& itemGuid = ExtractGuid(itemAttributes);
+                assert(itemGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum case is missing GUID attribute");
+                
+                Reflection::EnumCaseDescription itemDesc(enumItem->getName(), itemGuid);
+                itemDesc.mValue = enumItem->getInitVal().getExtValue();
+                enumDesc.mCases.emplace_back(itemDesc);
+            }
+        }
+        return mGuidToEnum.emplace_hint(mGuidToEnum.end(), guid, enumDesc);
+    }
+    return mGuidToEnum.end();
 }
 
-void ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
+ReflectionParser::ClassMap::iterator ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
 {
-    auto* recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
-    std::string recordAnnotation = recordAnnotateAttr->getAnnotation().str();
+    auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
+    auto recordAnnotation = recordAnnotateAttr->getAnnotation().str();
     
     if (recordAnnotation.find("GCLASS") || recordAnnotation.find("GSTRUCT"))
     {
@@ -90,25 +98,139 @@ void ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
         const auto& recordGuid = ExtractGuid(recordAttribs);
         assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
         
-        // Process fields
-        for (const auto* field : recordDecl->fields())
+        auto it = mGuidToClass.find(recordGuid);
+        if (it != mGuidToClass.end())
         {
-            auto* annotateAttr = field->getAttr<clang::AnnotateAttr>();
-            std::string annotation = annotateAttr->getAnnotation().str();
+            return it; // already processed;
+        }
+        
+        Reflection::ClassDescription classDesc(recordDecl->getName(), recordGuid);
+        
+        // Process bases
+        for (const auto base : recordDecl->bases())
+        {
+            const auto baseRecord = base.getType()->getAsCXXRecordDecl();
+            if (baseRecord && baseRecord->hasAttr<clang::AnnotateAttr>() && baseRecord->isCompleteDefinition())
+            {
+                auto baseIt = HandleRecordDecl(baseRecord);
+                if (baseIt != mGuidToClass.end())
+                {
+                    classDesc.mBaseClasses.emplace_back(baseIt->second);
+                }
+            }
+        }
+        
+        // Process fields
+        for (const auto field : recordDecl->fields())
+        {
+            auto annotateAttr = field->getAttr<clang::AnnotateAttr>();
+            auto annotation = annotateAttr->getAnnotation().str();
             
             if (annotation.find("GFIELD"))
             {
                 const auto& attribs = ParseAttributes(annotation);
                 const auto& guid = ExtractGuid(attribs);
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
+                
+                Reflection::FieldDescription fieldDesc(field->getName(), guid);
+                fieldDesc.mOffset = field->getASTContext().getFieldOffset(field) / 8; // Convert bits to bytes
+                fieldDesc.mSize = field->getASTContext().getTypeSize(field->getType()) / 8; // Convert bits to bytes
+
+                clang::QualType fieldType = field->getType();
+                if (fieldType->isArrayType())
+                {
+                    const clang::ArrayType* arrayType = fieldType->getAsArrayTypeUnsafe();
+                    const clang::QualType elementType = arrayType->getElementType();
+                    
+                    fieldDesc.mType = Reflection::MetaType::Array;
+                    fieldDesc.mTypeHash = elementType.getTypePtr()->getTypeClass(); // TODO: use a proper hashing function
+                }
+                else if (fieldType->isRecordType())
+                {
+                    const clang::RecordType* recordType = fieldType->getAs<clang::RecordType>();
+                    
+                    fieldDesc.mType = Reflection::MetaType::Class;
+                    fieldDesc.mTypeHash = recordType->getDecl()->getTypeForDecl()->getTypeClass(); // TODO: use a proper hashing function
+                }
+                else if (fieldType->isEnumeralType())
+                {
+                    const clang::EnumType* enumType = fieldType->getAs<clang::EnumType>();
+                    
+                    fieldDesc.mType = Reflection::MetaType::Enum;
+                    fieldDesc.mTypeHash = enumType->getDecl()->getTypeForDecl()->getTypeClass(); // TODO: use a proper hashing function
+                }
+                else if (fieldType->isBuiltinType())
+                {
+                    const clang::BuiltinType* builtinType = fieldType->getAs<clang::BuiltinType>();
+                    
+                    fieldDesc.mType = Reflection::MetaType::Primitive;
+                    switch (builtinType->getKind())
+                    {
+                        case clang::BuiltinType::Bool:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Bool);
+                            break;
+                        case clang::BuiltinType::WChar_U:
+                        case clang::BuiltinType::WChar_S:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::WChar);
+                            break;
+                        case clang::BuiltinType::Char_U:
+                        case clang::BuiltinType::Char_S:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Char);
+                            break;
+                        case clang::BuiltinType::SChar:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Int8);
+                            break;
+                        case clang::BuiltinType::Short:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Int16);
+                            break;
+                        case clang::BuiltinType::Int:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Int32);
+                            break;
+                        case clang::BuiltinType::Long:
+                        case clang::BuiltinType::LongLong:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Int64);
+                            break;
+                        case clang::BuiltinType::UChar:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::UInt8);
+                            break;
+                        case clang::BuiltinType::UShort:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::UInt16);
+                            break;
+                        case clang::BuiltinType::UInt:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::UInt32);
+                            break;
+                        case clang::BuiltinType::ULong:
+                        case clang::BuiltinType::ULongLong:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::UInt64);
+                            break;
+                        case clang::BuiltinType::Float:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Float);
+                            break;
+                        case clang::BuiltinType::Double:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Double);
+                            break;
+                        case clang::BuiltinType::Void:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Void);
+                            break;
+                        default:
+                            fieldDesc.mTypeHash = static_cast<uint32_t>(Reflection::PrimitiveType::Invalid);
+                            break;
+                    }
+                }
+                else
+                {
+                    // Unknown type
+                    continue;
+                }
+                classDesc.mFields.emplace_back(fieldDesc);
             }
         }
         
         // Process functions
-        for (const auto* method : recordDecl->methods())
+        for (const auto method : recordDecl->methods())
         {
-            auto* annotateAttr = method->getAttr<clang::AnnotateAttr>();
-            std::string annotation = annotateAttr->getAnnotation().str();
+            auto annotateAttr = method->getAttr<clang::AnnotateAttr>();
+            auto annotation = annotateAttr->getAnnotation().str();
             
             if (annotation.find("GFUNCTION"))
             {
@@ -117,9 +239,9 @@ void ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
             }
         }
-        
-        Reflection::ClassDescription classDesc(recordDecl->getName(), recordGuid);
+        return mGuidToClass.emplace_hint(mGuidToClass.end(), recordGuid, classDesc);
     }
+    return mGuidToClass.end();
 }
 
 std::vector<AttributePair> ReflectionParser::ParseAttributes(const std::string& annotation)

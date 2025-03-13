@@ -28,7 +28,17 @@ namespace Attribute {
 
 GLEAM_ATTRIBUTE(Guid)
 {
-    uint8_t bytes[16];
+    union
+    {
+        struct
+        {
+            uint32_t mData1;
+            uint16_t mData2;
+            uint16_t mData3;
+            uint8_t mData4[8];
+        };
+        uint8_t bytes[16];
+    };
     
     explicit constexpr Guid()
         : bytes{0}
@@ -177,3 +187,20 @@ GLEAM_ATTRIBUTE(PrettyName)
 } // namespace Attribute
 
 } // namespace Gleam::Reflection
+
+template <>
+struct std::hash<Gleam::Reflection::Attribute::Guid>
+{
+    size_t operator()(const Gleam::Reflection::Attribute::Guid& guid) const
+    {
+        size_t hash = 0;
+        Gleam::Reflection::Utils::HashCombine(hash, guid.mData1);
+        Gleam::Reflection::Utils::HashCombine(hash, guid.mData2);
+        Gleam::Reflection::Utils::HashCombine(hash, guid.mData3);
+        
+        uint64_t data4;
+        memcpy(&data4, guid.mData4, sizeof(uint64_t));
+        Gleam::Reflection::Utils::HashCombine(hash, data4);
+        return hash;
+    }
+};

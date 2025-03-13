@@ -28,17 +28,23 @@ struct AttributePair
 
 class ReflectionParser
 {
+    using EnumMap = std::unordered_map<Reflection::Attribute::Guid, Reflection::EnumDescription>;
+    using ClassMap = std::unordered_map<Reflection::Attribute::Guid, Reflection::ClassDescription>;
 public:
     ReflectionParser();
     void ParseAST(clang::ASTContext& context);
     void GenerateOutput(const std::string& outputDir);
     
 private:
-    void HandleEnumDecl(const clang::EnumDecl* enumDecl);
-    void HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
+    EnumMap::iterator HandleEnumDecl(const clang::EnumDecl* enumDecl);
+    ClassMap::iterator HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
     
     std::vector<AttributePair> ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const std::vector<AttributePair>& attributes);
+    
+    // TODO: move these to Database
+    EnumMap mGuidToEnum;
+    ClassMap mGuidToClass;
 };
 
 } // namespace Gleam

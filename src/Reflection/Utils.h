@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <functional>
 
 namespace Gleam::Reflection::Utils {
 
@@ -20,6 +21,12 @@ static constexpr uint8_t HexDigitToByte(const char ch)
         return uint8_t(10 + ch - 'A');
 
     return uint8_t(0);
+}
+
+template <typename T>
+constexpr void HashCombine(size_t& seed, const T& value)
+{
+    seed ^= std::hash<T>()(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
 // Fowler–Noll–Vo hash
