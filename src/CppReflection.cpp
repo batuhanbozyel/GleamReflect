@@ -11,6 +11,7 @@ using namespace Gleam;
 class ReflectionASTConsumer : public clang::ASTConsumer
 {
 public:
+    
     explicit ReflectionASTConsumer(ReflectionParser& parser)
         : mParser(parser)
     {
@@ -31,7 +32,7 @@ class ReflectionFrontendAction : public clang::ASTFrontendAction
 {
 public:
     
-    ReflectionFrontendAction(const std::filesystem::path& outputDir)
+    explicit ReflectionFrontendAction(const std::filesystem::path& outputDir)
         : mOutputDir(outputDir)
     {
         
@@ -57,7 +58,7 @@ class ReflectionFrontendActionFactory : public clang::tooling::FrontendActionFac
 {
 public:
     
-    ReflectionFrontendActionFactory(const std::filesystem::path& outputDir)
+    explicit ReflectionFrontendActionFactory(const std::filesystem::path& outputDir)
         : mOutputDir(outputDir)
     {
         
@@ -71,15 +72,20 @@ public:
 private:
     
     std::filesystem::path mOutputDir;
-    
 };
 
-static llvm::cl::OptionCategory CppReflectionCategory("C++ Reflection");
+static llvm::cl::OptionCategory ReflectionToolCategory("C++ Reflection");
 static llvm::cl::extrahelp CommonHelp(clang::tooling::CommonOptionsParser::HelpMessage);
+
+static llvm::cl::opt<std::string> OutputDir("output-dir",
+                                            llvm::cl::desc("Specify output directory for generated files"),
+                                            llvm::cl::value_desc("directory"),
+                                            llvm::cl::Required,
+                                            llvm::cl::cat(ReflectionToolCategory));
 
 int main(int argc, const char **argv)
 {
-    auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, CppReflectionCategory);
+    auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, ReflectionToolCategory);
     if (!optionsParser)
     {
         llvm::errs() << optionsParser.takeError();
@@ -96,7 +102,6 @@ int main(int argc, const char **argv)
         return adjustedArgs;
     });
     
-    std::filesystem::path outputDir = std::filesystem::current_path();
-    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(outputDir);
+    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(OutputDir.ValueStr.data());
     return tool.run(frontendActionFactory.get());
 }
