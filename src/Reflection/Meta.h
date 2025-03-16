@@ -10,6 +10,7 @@
 
 namespace Gleam {
 class ReflectionParser;
+class ReflectionContext;
 } // namespace Gleam
 
 namespace Gleam::Reflection {
@@ -48,14 +49,20 @@ class MetaDescription
 {
 public:
     
-    constexpr MetaDescription(const std::string_view name, const Attribute::Guid& guid)
+    constexpr MetaDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
         : mName(name)
         , mGuid(guid)
+        , mTypeHash(typeHash)
     {
         
     }
     
     virtual ~MetaDescription() = default;
+    
+    constexpr uint32_t TypeHash() const
+    {
+        return mTypeHash;
+    }
     
     constexpr const Attribute::Guid& Guid() const
     {
@@ -95,6 +102,7 @@ public:
     
 private:
     
+    uint32_t mTypeHash = 0;
     const std::string_view mName = "";
     Attribute::Guid mGuid = Attribute::Guid::InvalidGuid();
     //std::vector<AttributePair> mAttributes = {};
@@ -105,8 +113,8 @@ class FieldDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr FieldDescription(const std::string_view name, const Attribute::Guid& guid)
-        : MetaDescription(name, guid)
+    constexpr FieldDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
+        : MetaDescription(name, guid, typeHash)
     {
         
     }
@@ -121,7 +129,7 @@ public:
         return mSize;
     }
     
-    constexpr size_t GetTypeHash() const
+    constexpr uint32_t GetTypeHash() const
     {
         return mTypeHash;
     }
@@ -135,7 +143,7 @@ private:
     
     size_t mSize = 0;
     size_t mOffset = 0;
-    size_t mTypeHash = 0;
+    uint32_t mTypeHash = 0;
     MetaType mType = MetaType::Invalid;
 };
 
@@ -144,8 +152,8 @@ class EnumCaseDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr EnumCaseDescription(const std::string_view name, const Attribute::Guid& guid)
-        : MetaDescription(name, guid)
+    constexpr EnumCaseDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
+        : MetaDescription(name, guid, typeHash)
     {
         
     }
@@ -165,8 +173,8 @@ class EnumDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr EnumDescription(const std::string_view name, const Attribute::Guid& guid)
-        : MetaDescription(name, guid)
+    constexpr EnumDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
+        : MetaDescription(name, guid, typeHash)
     {
         
     }
@@ -193,8 +201,8 @@ class ClassDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr ClassDescription(const std::string_view name, const Attribute::Guid& guid)
-        : MetaDescription(name, guid)
+    constexpr ClassDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
+        : MetaDescription(name, guid, typeHash)
     {
         
     }
@@ -214,7 +222,7 @@ public:
         return mSize;
     }
     
-    constexpr size_t ContainerHash() const
+    constexpr uint32_t ContainerHash() const
     {
         return mContainerHash;
     }
@@ -222,21 +230,16 @@ public:
 private:
     
     size_t mSize = 0;
-    size_t mContainerHash = 0;
+    uint32_t mContainerHash = 0;
     std::vector<FieldDescription> mFields = {};
     std::vector<ClassDescription> mBaseClasses = {};
 };
 
-class ArrayDescription : public MetaDescription
+class ArrayDescription
 {
     friend class Gleam::ReflectionParser;
+    friend class Gleam::ReflectionContext;
 public:
-    
-    constexpr ArrayDescription(const std::string_view name, const Attribute::Guid& guid)
-        : MetaDescription(name, guid)
-    {
-        
-    }
     
     constexpr size_t GetSize() const
     {
@@ -248,7 +251,12 @@ public:
         return mStride;
     }
     
-    constexpr size_t ElementHash() const
+    constexpr uint32_t TypeHash() const
+    {
+        return mTypeHash;
+    }
+    
+    constexpr uint32_t ElementHash() const
     {
         return mElementHash;
     }
@@ -262,7 +270,8 @@ private:
     
     size_t mSize = 0;
     size_t mStride = 0;
-    size_t mElementHash = 0;
+    uint32_t mTypeHash = 0;
+    uint32_t mElementHash = 0;
     MetaType mElementType = MetaType::Invalid;
     
 };

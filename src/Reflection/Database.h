@@ -11,14 +11,9 @@ namespace Gleam::Reflection {
 
 class Database
 {
-    friend class Gleam::ReflectionParser;
-    using EnumMap = std::unordered_map<Attribute::Guid, EnumDescription>;
-    using ClassMap = std::unordered_map<Attribute::Guid, ClassDescription>;
 public:
     
 private:
-    EnumMap mGuidToEnum;
-    ClassMap mGuidToClass;
     
 };
 
