@@ -145,7 +145,7 @@ GLEAM_ATTRIBUTE(Guid)
     
     bool operator==(const Guid& other) const
     {
-        return memcmp(bytes, other.bytes, sizeof(bytes));
+        return memcmp(bytes, other.bytes, sizeof(bytes)) == 0;
     }
     
     bool operator!=(const Guid& other) const

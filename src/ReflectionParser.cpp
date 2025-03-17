@@ -69,7 +69,7 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
     auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
     
-    if (enumAnnotation.find("GENUM"))
+    if (enumAnnotation.find("GENUM") != std::string::npos)
     {
         const auto& attributes = ParseAttributes(enumAnnotation);
         const auto& guid = ExtractGuid(attributes);
@@ -96,7 +96,7 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
             auto itemAnnotateAttr = enumItem->getAttr<clang::AnnotateAttr>();
             auto itemAnnotation = itemAnnotateAttr->getAnnotation().str();
             
-            if (itemAnnotation.find("GITEM"))
+            if (itemAnnotation.find("GITEM") != std::string::npos)
             {
                 const auto& itemAttributes = ParseAttributes(itemAnnotation);
                 const auto& itemGuid = ExtractGuid(itemAttributes);
@@ -122,7 +122,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
     auto recordAnnotation = recordAnnotateAttr->getAnnotation().str();
     
-    if (recordAnnotation.find("GCLASS") || recordAnnotation.find("GSTRUCT"))
+    if (recordAnnotation.find("GCLASS") != std::string::npos || recordAnnotation.find("GSTRUCT") != std::string::npos)
     {
         const auto& recordAttribs = ParseAttributes(recordAnnotation);
         const auto& recordGuid = ExtractGuid(recordAttribs);
@@ -159,7 +159,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
             auto annotateAttr = field->getAttr<clang::AnnotateAttr>();
             auto annotation = annotateAttr->getAnnotation().str();
             
-            if (annotation.find("GFIELD"))
+            if (annotation.find("GFIELD") != std::string::npos)
             {
                 const auto& attribs = ParseAttributes(annotation);
                 const auto& guid = ExtractGuid(attribs);
@@ -304,9 +304,17 @@ std::vector<AttributePair> ReflectionParser::ParseAttributes(const std::string& 
     {
         std::string attrName = (*it)[1].str();
         std::string argsStr = (*it)[2].str();
-        attributes.emplace_back(AttributePair{
-            .description = Reflection::AttributeDescription(attrName.c_str()),
-            .arguments = argsStr });
+
+        if (attrName == "GCLASS" || 
+            attrName == "GSTRUCT" || 
+            attrName == "GENUM" || 
+            attrName == "GITEM" || 
+            attrName == "GFUNCTION" || 
+            attrName == "GFIELD")
+        {
+			continue; // skip macro attributes
+        }
+		attributes.emplace_back(attrName, argsStr);
     }
     return attributes;
 }
@@ -315,7 +323,7 @@ Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const std::vector<Attr
 {
     for (const auto& attr : attributes)
     {
-        if (attr.description.hash == Reflection::Utils::HashString("Guid"))
+        if (attr.name == "Guid")
         {
             return Reflection::Attribute::Guid(attr.arguments);
         }

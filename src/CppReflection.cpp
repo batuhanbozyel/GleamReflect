@@ -102,6 +102,7 @@ int main(int argc, const char **argv)
         return adjustedArgs;
     });
     
-    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(OutputDir.ValueStr.data());
+	std::string outputDirectory = OutputDir;
+    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(outputDirectory);
     return tool.run(frontendActionFactory.get());
 }

@@ -129,11 +129,6 @@ public:
         return mSize;
     }
     
-    constexpr uint32_t GetTypeHash() const
-    {
-        return mTypeHash;
-    }
-    
     constexpr MetaType GetType() const
     {
         return mType;
@@ -143,7 +138,6 @@ private:
     
     size_t mSize = 0;
     size_t mOffset = 0;
-    uint32_t mTypeHash = 0;
     MetaType mType = MetaType::Invalid;
 };
 

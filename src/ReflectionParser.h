@@ -7,7 +7,7 @@ namespace Gleam {
 
 struct AttributePair
 {
-    Reflection::AttributeDescription description;
+    std::string name;
     std::string arguments;
 };
 
