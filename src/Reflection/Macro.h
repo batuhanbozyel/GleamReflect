@@ -17,5 +17,10 @@
 #endif
 
 #define GLEAM_ATTRIBUTE(tag, ...)                                                                   \
-    struct AttributeBase_##tag { static constexpr auto description = AttributeDescription(#tag); }; \
-    struct tag : AttributeBase_##tag
+    struct AttributeBase_##tag : Gleam::Reflection::IAttribute {                                    \
+        static constexpr auto description = Gleam::Reflection::AttributeDescription(#tag);          \
+        virtual const Gleam::Reflection::AttributeDescription& GetDescription() const override {    \
+			return description;                                                                     \
+		}                                                                                           \
+        virtual ~AttributeBase_##tag() = default;                                                   \
+    }; struct tag : AttributeBase_##tag

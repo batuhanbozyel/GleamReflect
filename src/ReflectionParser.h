@@ -5,12 +5,6 @@
 
 namespace Gleam {
 
-struct AttributePair
-{
-    std::string name;
-    std::string arguments;
-};
-
 class ReflectionParser
 {
 public:
@@ -27,8 +21,8 @@ private:
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;
     
-    std::vector<AttributePair> ParseAttributes(const std::string& annotation) const;
-    Reflection::Attribute::Guid ExtractGuid(const std::vector<AttributePair>& attributes) const;
+    std::vector<Reflection::IAttribute*> ParseAttributes(const std::string& annotation) const;
+    Reflection::Attribute::Guid ExtractGuid(const std::vector<Reflection::IAttribute*>& attributes) const;
 private:
     ReflectionContext mContext;
 };

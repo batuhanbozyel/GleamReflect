@@ -24,6 +24,12 @@ struct AttributeDescription
     }
 };
 
+struct IAttribute
+{
+	virtual ~IAttribute() = default;
+    virtual const AttributeDescription& GetDescription() const = 0;
+};
+
 namespace Attribute {
 
 GLEAM_ATTRIBUTE(Guid)
@@ -138,7 +144,7 @@ GLEAM_ATTRIBUTE(Guid)
     constexpr Guid(Guid&&) = default;
     constexpr Guid& operator=(Guid&&) noexcept = default;
     
-    static constexpr Guid InvalidGuid()
+    static Guid InvalidGuid()
     {
         return Guid();
     }
@@ -185,6 +191,9 @@ GLEAM_ATTRIBUTE(PrettyName)
 };
 
 } // namespace Attribute
+
+template<typename T>
+concept AttributeType = std::is_base_of_v<IAttribute, T>;
 
 } // namespace Gleam::Reflection
 

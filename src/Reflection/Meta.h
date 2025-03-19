@@ -49,10 +49,14 @@ class MetaDescription
 {
 public:
     
-    constexpr MetaDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
+    MetaDescription(const std::string_view name,
+                    const std::vector<IAttribute*>& attributes,
+                    const Attribute::Guid& guid,
+                    uint32_t typeHash)
         : mName(name)
         , mGuid(guid)
         , mTypeHash(typeHash)
+		, mAttributes(attributes)
     {
         
     }
@@ -74,38 +78,37 @@ public:
         return mName;
     }
     
-    //    template<AttributeType Attrib>
-    //    constexpr bool HasAttribute() const
-    //    {
-    //        for (const auto& attrib : mAttributes)
-    //        {
-    //            if (attrib.description.hash == Attrib::description.hash)
-    //            {
-    //                return true;
-    //            }
-    //        }
-    //        return false;
-    //    }
-    //
-    //    template<AttributeType Attrib>
-    //    constexpr Attrib GetAttribute() const
-    //    {
-    //        for (const auto& attrib : mAttributes)
-    //        {
-    //            if (attrib.description.hash == Attrib::description.hash)
-    //            {
-    //                return std::any_cast<Attrib>(attrib.value);
-    //            }
-    //        }
-    //        return Attrib({});
-    //    }
+	template<AttributeType Attrib>
+	constexpr bool HasAttribute() const
+	{
+		for (const auto attrib : mAttributes)
+		{
+			if (attrib->GetDescription().hash == Attrib::description.hash)
+			{
+				return true;
+			}
+		}
+        return false;
+	}
+
+	template<AttributeType Attrib>
+	constexpr const Attrib* GetAttribute() const
+	{
+		for (const auto attrib : mAttributes)
+		{
+			if (attrib->GetDescription().hash == Attrib::description.hash)
+			{
+                return static_cast<const Attrib*>(attrib);
+			}
+		}
+	}
     
 private:
     
     uint32_t mTypeHash = 0;
     const std::string_view mName = "";
     Attribute::Guid mGuid = Attribute::Guid::InvalidGuid();
-    //std::vector<AttributePair> mAttributes = {};
+    std::vector<IAttribute*> mAttributes = {};
 };
 
 class FieldDescription : public MetaDescription
@@ -113,8 +116,11 @@ class FieldDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr FieldDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
-        : MetaDescription(name, guid, typeHash)
+	FieldDescription(const std::string_view name,
+		             const std::vector<IAttribute*>& attributes,
+		             const Attribute::Guid& guid,
+		             uint32_t typeHash)
+        : MetaDescription(name, attributes, guid, typeHash)
     {
         
     }
@@ -146,8 +152,11 @@ class EnumCaseDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr EnumCaseDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
-        : MetaDescription(name, guid, typeHash)
+	EnumCaseDescription(const std::string_view name,
+		                const std::vector<IAttribute*>& attributes,
+		                const Attribute::Guid& guid,
+		                uint32_t typeHash)
+        : MetaDescription(name, attributes, guid, typeHash)
     {
         
     }
@@ -167,8 +176,11 @@ class EnumDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr EnumDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
-        : MetaDescription(name, guid, typeHash)
+	EnumDescription(const std::string_view name,
+		            const std::vector<IAttribute*>& attributes,
+		            const Attribute::Guid& guid,
+		            uint32_t typeHash)
+        : MetaDescription(name, attributes, guid, typeHash)
     {
         
     }
@@ -195,8 +207,11 @@ class ClassDescription : public MetaDescription
     friend class Gleam::ReflectionParser;
 public:
     
-    constexpr ClassDescription(const std::string_view name, const Attribute::Guid& guid, uint32_t typeHash)
-        : MetaDescription(name, guid, typeHash)
+	ClassDescription(const std::string_view name,
+		             const std::vector<IAttribute*>& attributes,
+		             const Attribute::Guid& guid,
+		             uint32_t typeHash)
+        : MetaDescription(name, attributes, guid, typeHash)
     {
         
     }

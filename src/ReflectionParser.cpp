@@ -1,4 +1,6 @@
 #include "ReflectionParser.h"
+#include "Attributes.h"
+
 #include <clang/AST/AST.h>
 #include <clang/Tooling/Tooling.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -81,7 +83,7 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
         }
         
         uint32_t typeHash = Reflection::Utils::HashString(enumDecl->getQualifiedNameAsString().c_str());
-        Reflection::EnumDescription enumDesc(enumDecl->getName(), guid, typeHash);
+        Reflection::EnumDescription enumDesc(enumDecl->getName(), attributes, guid, typeHash);
         
         auto& astContext = enumDecl->getASTContext();
         enumDesc.mSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
@@ -102,7 +104,7 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
                 const auto& itemGuid = ExtractGuid(itemAttributes);
                 assert(itemGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum case is missing GUID attribute");
                 
-                Reflection::EnumCaseDescription itemDesc(enumItem->getName(), itemGuid, typeHash);
+                Reflection::EnumCaseDescription itemDesc(enumItem->getName(), itemAttributes, itemGuid, typeHash);
                 itemDesc.mValue = enumItem->getInitVal().getExtValue();
                 enumDesc.mCases.emplace_back(itemDesc);
             }
@@ -134,7 +136,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
         }
         
         uint32_t typeHash = Reflection::Utils::HashString(recordDecl->getQualifiedNameAsString().c_str());
-        Reflection::ClassDescription classDesc(recordDecl->getName(), recordGuid, typeHash);
+        Reflection::ClassDescription classDesc(recordDecl->getName(), recordAttribs, recordGuid, typeHash);
         
         auto& astContext = recordDecl->getASTContext();
         classDesc.mSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
@@ -205,7 +207,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     continue;
                 }
                 
-                Reflection::FieldDescription fieldDesc(field->getName(), guid, typeHash);
+                Reflection::FieldDescription fieldDesc(field->getName(), attribs, guid, typeHash);
                 fieldDesc.mOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
                 fieldDesc.mSize = field->getASTContext().getTypeSize(field->getType()) / 8ul; // Convert bits to bytes
                 fieldDesc.mType = type;
@@ -293,13 +295,13 @@ const Reflection::ArrayDescription* ReflectionParser::HandleArrayType(Reflection
     return context.RegisterArray(arrayDesc);
 }
 
-std::vector<AttributePair> ReflectionParser::ParseAttributes(const std::string& annotation) const
+std::vector<Reflection::IAttribute*> ReflectionParser::ParseAttributes(const std::string& annotation) const
 {
     std::regex attrRegex(R"(\b([A-Za-z0-9_]+)(?:\(([^)]*)\))?)");
     std::sregex_iterator it(annotation.begin(), annotation.end(), attrRegex);
     std::sregex_iterator end;
  
-    std::vector<AttributePair> attributes;
+    std::vector<Reflection::IAttribute*> attributes;
     for (; it != end; ++it)
     {
         std::string attrName = (*it)[1].str();
@@ -314,18 +316,22 @@ std::vector<AttributePair> ReflectionParser::ParseAttributes(const std::string& 
         {
 			continue; // skip macro attributes
         }
-		attributes.emplace_back(attrName, argsStr);
+        
+        if (auto attr = Reflection::AttributeFactory::Instance().CreateAttribute(attrName, argsStr); attr != nullptr)
+        {
+			attributes.emplace_back(attr);
+        }
     }
     return attributes;
 }
 
-Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const std::vector<AttributePair>& attributes) const
+Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const std::vector<Reflection::IAttribute*>& attributes) const
 {
-    for (const auto& attr : attributes)
+    for (const auto attr : attributes)
     {
-        if (attr.name == "Guid")
+        if (attr->GetDescription().hash == Reflection::Utils::HashString("Guid"))
         {
-            return Reflection::Attribute::Guid(attr.arguments);
+            return *static_cast<const Reflection::Attribute::Guid*>(attr);
         }
     }
     return Reflection::Attribute::Guid::InvalidGuid();
