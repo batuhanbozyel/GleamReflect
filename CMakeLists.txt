@@ -2,14 +2,14 @@ include(${CMAKE_SOURCE_DIR}/CMake/CMakeUtils.cmake)
 
 cmake_minimum_required(VERSION 3.20)
 
-project(CppReflection)
+project(GleamReflect)
 
     if (WIN32)
-        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT CppReflection)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT GleamReflect)
     elseif (APPLE)
         set(CMAKE_OSX_ARCHITECTURES "arm64")
         set(CMAKE_XCODE_GENERATE_SCHEME true)
-        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE CppReflection)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE GleamReflect)
     endif()
 
     #preventing in source build
@@ -54,16 +54,16 @@ project(CppReflection)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIGURATION>)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIGURATION>)
 
-    # CppReflection project
+    # GleamReflect project
     set(INCLUDE_DIRS src ${LLVM_INCLUDE_DIRS})
     file(GLOB_RECURSE SOURCE_FILES 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
     )
 
-    add_executable(CppReflection ${SOURCE_FILES})
-    target_link_directories(CppReflection PRIVATE ${LLVM_LIBRARY_DIR})
-    target_link_libraries(CppReflection PRIVATE ${LLVM_LIBS}
+    add_executable(GleamReflect ${SOURCE_FILES})
+    target_link_directories(GleamReflect PRIVATE ${LLVM_LIBRARY_DIR})
+    target_link_libraries(GleamReflect PRIVATE ${LLVM_LIBS}
         clangAST
         clangASTMatchers
         clangBasic
@@ -71,6 +71,6 @@ project(CppReflection)
         clangSerialization
         clangTooling
     )
-    target_include_directories(CppReflection PRIVATE ${INCLUDE_DIRS})
+    target_include_directories(GleamReflect PRIVATE ${INCLUDE_DIRS})
     source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
-    SET_WORKING_DIRECTORY(CppReflection ${CMAKE_SOURCE_DIR})
+    SET_WORKING_DIRECTORY(GleamReflect ${CMAKE_SOURCE_DIR})
