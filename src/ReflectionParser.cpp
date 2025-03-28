@@ -12,7 +12,7 @@
 using namespace Gleam;
 
 ReflectionParser::ReflectionParser()
-    : mContext("", "::") // global namespace
+    : mContext("", "") // global namespace
 {
     
 }
@@ -53,13 +53,15 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
 void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 {
     std::stringstream generatedCode;
-    generatedCode << "#ifndef __GLEAM_REFLECTION__\n\n";
-    
+    generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
+	generatedCode << "#include <Reflection/Meta.h>\n\n";
+
+    mContext.ForwardDecls(generatedCode);
     // TODO: codegen
     
     generatedCode << "#endif // __GLEAM_REFLECTION__\n";
     
-    auto filename = outputDir / "Reflection.gen.hx";
+    auto filename = outputDir / "Reflection.generated.h";
     std::ofstream file(filename, std::ios::out | std::ios::trunc);
     
     auto generatedCodeStr = generatedCode.str();
@@ -82,12 +84,11 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
             return enumDesc; // already processed
         }
         
-        uint32_t typeHash = Reflection::Utils::HashString(enumDecl->getQualifiedNameAsString().c_str());
-        Reflection::EnumDescription enumDesc(enumDecl->getName(), attributes, guid, typeHash);
-        
         auto& astContext = enumDecl->getASTContext();
-        enumDesc.mSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
-        
+        uint32_t typeHash = Reflection::Utils::HashString(enumDecl->getQualifiedNameAsString().c_str());
+        size_t enumSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
+
+		std::vector<Reflection::EnumCaseDescription> enumCases;
         for (const auto enumItem : enumDecl->enumerators())
         {
             if (enumItem->hasAttr<clang::AnnotateAttr>() == false)
@@ -103,13 +104,10 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
                 const auto& itemAttributes = ParseAttributes(itemAnnotation);
                 const auto& itemGuid = ExtractGuid(itemAttributes);
                 assert(itemGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum case is missing GUID attribute");
-                
-                Reflection::EnumCaseDescription itemDesc(enumItem->getName(), itemAttributes, itemGuid, typeHash);
-                itemDesc.mValue = enumItem->getInitVal().getExtValue();
-                enumDesc.mCases.emplace_back(itemDesc);
+                enumCases.emplace_back(Reflection::EnumCaseDescription({ enumItem->getName(), itemAttributes, itemGuid, typeHash }, enumItem->getInitVal().getExtValue()));
             }
         }
-        return context.RegisterEnum(enumDesc);
+        return context.RegisterEnum(Reflection::EnumDescription({ enumDecl->getName(), attributes, guid, typeHash }, enumSize, enumCases));
     }
     return nullptr;
 }
@@ -136,13 +134,14 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
         }
         
         uint32_t typeHash = Reflection::Utils::HashString(recordDecl->getQualifiedNameAsString().c_str());
-        Reflection::ClassDescription classDesc(recordDecl->getName(), recordAttribs, recordGuid, typeHash);
+        
         
         auto& astContext = recordDecl->getASTContext();
-        classDesc.mSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
+        size_t classSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
         
         // Process bases
-        for (const auto base : recordDecl->bases())
+		std::vector<Reflection::ClassDescription> baseClasses;
+        for (const auto& base : recordDecl->bases())
         {
             const auto baseRecord = base.getType()->getAsCXXRecordDecl();
             if (baseRecord && baseRecord->hasAttr<clang::AnnotateAttr>() && baseRecord->isCompleteDefinition())
@@ -150,12 +149,13 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                 auto baseDesc = HandleRecordDecl(context, baseRecord);
                 if (baseDesc != nullptr)
                 {
-                    classDesc.mBaseClasses.emplace_back(*baseDesc);
+                    baseClasses.emplace_back(*baseDesc);
                 }
             }
         }
         
         // Process fields
+        std::vector<Reflection::FieldDescription> fields;
         for (const auto field : recordDecl->fields())
         {
             auto annotateAttr = field->getAttr<clang::AnnotateAttr>();
@@ -168,7 +168,9 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
                 
                 uint32_t typeHash = 0;
-                Reflection::MetaType type = Reflection::MetaType::Invalid;
+                Reflection::MetaType metaType = Reflection::MetaType::Invalid;
+				size_t fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
+				size_t fieldSize = field->getASTContext().getTypeSize(field->getType()) / 8ul; // Convert bits to bytes
                 
                 clang::QualType fieldType = field->getType();
                 if (fieldType->isArrayType())
@@ -176,7 +178,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     const clang::ArrayType* arrayType = fieldType->getAsArrayTypeUnsafe();
                     if (arrayType->isConstantArrayType())
                     {
-                        type = Reflection::MetaType::Array;
+                        metaType = Reflection::MetaType::Array;
                         typeHash = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(arrayType))->TypeHash();
                     }
                 }
@@ -184,21 +186,21 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                 {
                     const clang::RecordType* recordType = fieldType->getAs<clang::RecordType>();
                     
-                    type = Reflection::MetaType::Class;
+                    metaType = Reflection::MetaType::Class;
                     typeHash = Reflection::Utils::HashString(recordType->getDecl()->getQualifiedNameAsString().c_str());
                 }
                 else if (fieldType->isEnumeralType())
                 {
                     const clang::EnumType* enumType = fieldType->getAs<clang::EnumType>();
                     
-                    type = Reflection::MetaType::Enum;
+                    metaType = Reflection::MetaType::Enum;
                     typeHash = Reflection::Utils::HashString(enumType->getDecl()->getQualifiedNameAsString().c_str());
                 }
                 else if (fieldType->isBuiltinType())
                 {
                     const clang::BuiltinType* builtinType = fieldType->getAs<clang::BuiltinType>();
                     
-                    type = Reflection::MetaType::Primitive;
+                    metaType = Reflection::MetaType::Primitive;
                     typeHash = BuiltinTypeHash(builtinType);
                 }
                 else
@@ -206,12 +208,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     // Unknown type
                     continue;
                 }
-                
-                Reflection::FieldDescription fieldDesc(field->getName(), attribs, guid, typeHash);
-                fieldDesc.mOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
-                fieldDesc.mSize = field->getASTContext().getTypeSize(field->getType()) / 8ul; // Convert bits to bytes
-                fieldDesc.mType = type;
-                classDesc.mFields.emplace_back(fieldDesc);
+                fields.emplace_back(Reflection::FieldDescription({ field->getName(), attribs, guid, typeHash }, fieldOffset, fieldSize, metaType));
             }
         }
         
@@ -226,9 +223,11 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                 const auto& attribs = ParseAttributes(annotation);
                 const auto& guid = ExtractGuid(attribs);
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
+
+                // TODO: function reflection support
             }
         }
-        return context.RegisterClass(classDesc);
+        return context.RegisterClass(Reflection::ClassDescription({ recordDecl->getName(), recordAttribs, recordGuid, typeHash }, classSize, fields, baseClasses));
     }
     return nullptr;
 }

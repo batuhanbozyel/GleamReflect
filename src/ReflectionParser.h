@@ -8,6 +8,7 @@ namespace Gleam {
 class ReflectionParser
 {
 public:
+
     ReflectionParser();
     void ParseAST(clang::ASTContext& context);
     void GenerateOutput(const std::filesystem::path& outputDir);
@@ -23,7 +24,9 @@ private:
     
     std::vector<Reflection::IAttribute*> ParseAttributes(const std::string& annotation) const;
     Reflection::Attribute::Guid ExtractGuid(const std::vector<Reflection::IAttribute*>& attributes) const;
+
 private:
+
     ReflectionContext mContext;
 };
 

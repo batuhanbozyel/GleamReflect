@@ -11,6 +11,31 @@ ReflectionContext::ReflectionContext(const std::string_view name, const std::str
     
 }
 
+void ReflectionContext::ForwardDecls(std::stringstream& ss) const
+{
+	for (const auto& context : mContexts)
+	{
+		context.ForwardDecls(ss);
+	}
+
+	if (mEnums.empty() && mClasses.empty())
+	{
+		return;
+	}
+
+	ss << "namespace " << mQualifiedName << " {\n";
+	for (const auto& [guid, enumDesc] : mEnums)
+	{
+		ss << "enum class " << enumDesc.ResolveName() << ";\n";
+	}
+	ss << "\n";
+	for (const auto& [guid, classDesc] : mClasses)
+	{
+		ss << "class " << classDesc.ResolveName() << ";\n";
+	}
+	ss << "}\n";
+}
+
 void ReflectionContext::EmplaceContext(const ReflectionContext& context)
 {
     mContexts.emplace_back(context);

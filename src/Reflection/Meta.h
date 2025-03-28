@@ -113,14 +113,13 @@ private:
 
 class FieldDescription : public MetaDescription
 {
-    friend class Gleam::ReflectionParser;
 public:
     
-	FieldDescription(const std::string_view name,
-		             const std::vector<IAttribute*>& attributes,
-		             const Attribute::Guid& guid,
-		             uint32_t typeHash)
-        : MetaDescription(name, attributes, guid, typeHash)
+	FieldDescription(const MetaDescription& meta, size_t offset, size_t size, MetaType type)
+        : MetaDescription(meta)
+		, mOffset(offset)
+		, mSize(size)
+		, mType(type)
     {
         
     }
@@ -149,14 +148,11 @@ private:
 
 class EnumCaseDescription : public MetaDescription
 {
-    friend class Gleam::ReflectionParser;
 public:
     
-	EnumCaseDescription(const std::string_view name,
-		                const std::vector<IAttribute*>& attributes,
-		                const Attribute::Guid& guid,
-		                uint32_t typeHash)
-        : MetaDescription(name, attributes, guid, typeHash)
+	EnumCaseDescription(const MetaDescription& meta, int64_t value)
+		: MetaDescription(meta)
+		, mValue(value)
     {
         
     }
@@ -173,14 +169,12 @@ private:
 
 class EnumDescription : public MetaDescription
 {
-    friend class Gleam::ReflectionParser;
 public:
     
-	EnumDescription(const std::string_view name,
-		            const std::vector<IAttribute*>& attributes,
-		            const Attribute::Guid& guid,
-		            uint32_t typeHash)
-        : MetaDescription(name, attributes, guid, typeHash)
+	EnumDescription(const MetaDescription& meta, size_t size, const std::vector<EnumCaseDescription>& cases)
+		: MetaDescription(meta)
+		, mSize(size)
+		, mCases(cases)
     {
         
     }
@@ -204,14 +198,13 @@ private:
 
 class ClassDescription : public MetaDescription
 {
-    friend class Gleam::ReflectionParser;
 public:
     
-	ClassDescription(const std::string_view name,
-		             const std::vector<IAttribute*>& attributes,
-		             const Attribute::Guid& guid,
-		             uint32_t typeHash)
-        : MetaDescription(name, attributes, guid, typeHash)
+    ClassDescription(const MetaDescription& meta, size_t size, const std::vector<FieldDescription>& fields, const std::vector<ClassDescription>& bases)
+		: MetaDescription(meta)
+		, mSize(size)
+		, mFields(fields)
+		, mBaseClasses(bases)
     {
         
     }
@@ -231,15 +224,9 @@ public:
         return mSize;
     }
     
-    constexpr uint32_t ContainerHash() const
-    {
-        return mContainerHash;
-    }
-    
 private:
     
     size_t mSize = 0;
-    uint32_t mContainerHash = 0;
     std::vector<FieldDescription> mFields = {};
     std::vector<ClassDescription> mBaseClasses = {};
 };
