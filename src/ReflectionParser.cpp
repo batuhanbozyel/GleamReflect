@@ -54,7 +54,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 {
     std::stringstream generatedCode;
     generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
-	generatedCode << "#include <Reflection/Meta.h>\n\n";
+	generatedCode << "#include <Reflection/Meta.h>\n";
 
     mContext.ForwardDecls(generatedCode);
     // TODO: codegen
