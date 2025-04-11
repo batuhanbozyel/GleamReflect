@@ -2,6 +2,55 @@
 
 namespace Gleam {
 
+GSTRUCT(Size, "67C7965D-59AD-4506-9DE9-C1902B126DDA", Serializable)
+{
+    GFIELD("9D34DD6A-2C5D-47A6-8B1C-652C1847B590", Serializable)
+    float width = 0.0f;
+
+    GFIELD("C655B9C2-CE7C-4827-8221-0D2EB0584418", Serializable)
+    float height = 0.0f;
+};
+
+GENUM(WindowFlag, "193C9225-5267-46DD-BAED-9CBE464BB5CE", Serializable)
+{
+	GITEM(BorderlessFullscreen, "4C1556D5-3768-4253-B326-4914439C5392") = 0,
+	GITEM(ExclusiveFullscreen, "1F337950-09AE-4B7C-AACC-9BED99630418") = 1,
+	GITEM(MaximizedWindow, "3BE7B62B-CCC5-4377-87EE-765073A2E2B6") = 2,
+	GITEM(CustomWindow, "AF98F11E-512E-4ECA-8BEE-FA152AF2B210") = 3
+};
+
+GSTRUCT(WindowConfig, "85D3831E-DFF6-4CA8-BFC3-33F624523C52", Serializable)
+{
+    GFIELD("807E4FDF-31E0-4E28-BDE4-59C3139BBBCC", Serializable)
+	WindowFlag windowFlag = WindowFlag::MaximizedWindow;
+
+    GFIELD("3E90C6A1-D720-4DA5-A2C2-1CCE5F2E5C9D", Serializable)
+    Size size = {0.0f, 0.0f};
+
+    GFIELD("DD29A72B-B7CD-4FB5-8354-8FC832C16FFE", Serializable)
+    unsigned int refreshRate = 0;
+};
+
+GSTRUCT(RendererConfig, "A0A57407-A24F-451D-9192-8ACE2E49CFC6", Serializable)
+{
+    GFIELD("84339532-3BA2-45B6-8CDC-6F9634490219", Serializable)
+	bool vsync = true;
+
+    GFIELD("10ADCBAF-D329-4387-8660-875EFC54BEEC", Serializable)
+	bool tripleBufferingEnabled = true;
+};
+
+GSTRUCT(EngineConfig, "EE9A0D16-3BD0-4C93-9D3B-EB4B43042EF1", Serializable)
+{
+    GFIELD("2C73BB62-C36E-43FA-85FB-F826186AD7D9", Serializable)
+    WindowConfig window;
+
+    GFIELD("971A0BD0-E1FC-49F8-A2EB-B5BAAC7BEDF2", Serializable)
+    RendererConfig renderer;
+};
+
+namespace Renderer {
+
 GENUM(Tonemapping, "6B993432-E807-444D-AB3D-8B6F6BD8F84D", Serializable)
 {
     GITEM(None, "A1993432-E807-444D-AB3D-8B6F6BD8F84D"),
@@ -50,6 +99,8 @@ GSTRUCT(Camera, "33D48E5D-6A9F-4D11-8A55-82F5C0EECECE", EntityComponent, Seriali
     GFIELD("DB068ED3-C0F5-49AA-8D5A-C990182E6663", Serializable)
     ColorGradingSettings colorGrading = {};
 };
+
+} // namespace Renderer
 
 } // namespace Gleam
 
