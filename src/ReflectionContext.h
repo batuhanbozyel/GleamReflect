@@ -27,6 +27,7 @@ public:
     explicit ReflectionContext(const std::string_view name, const std::string& qualifiedName);
     
 	void ForwardDecls(std::stringstream& ss) const;
+    void CodeGen(std::stringstream& ss) const;
 
     void EmplaceContext(const ReflectionContext& context);
     

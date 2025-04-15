@@ -57,7 +57,15 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 	generatedCode << "#include <Reflection/Meta.h>\n";
 
     mContext.ForwardDecls(generatedCode);
-    // TODO: codegen
+    
+    generatedCode << "namespace Gleam::Reflection {\n\n";
+    generatedCode << "template<typename T>\n";
+    generatedCode << "const ClassDescription& GetClass()\n";
+    generatedCode << "{\n";
+    generatedCode << "\tstatic_assert(false, \"Class is not reflected\");\n";
+    generatedCode << "}\n";
+    mContext.CodeGen(generatedCode);
+    generatedCode << "} // namespace Gleam::Reflection\n";
     
     generatedCode << "#endif // __GLEAM_REFLECTION__\n";
     
@@ -132,9 +140,6 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
         {
             return classDesc; // already processed
         }
-        
-        uint32_t typeHash = Reflection::Utils::HashString(recordDecl->getQualifiedNameAsString().c_str());
-        
         
         auto& astContext = recordDecl->getASTContext();
         size_t classSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
@@ -227,6 +232,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                 // TODO: function reflection support
             }
         }
+        uint32_t typeHash = Reflection::Utils::HashString(recordDecl->getQualifiedNameAsString().c_str());
         return context.RegisterClass(Reflection::ClassDescription({ recordDecl->getName(), recordAttribs, recordGuid, typeHash }, classSize, fields, baseClasses));
     }
     return nullptr;

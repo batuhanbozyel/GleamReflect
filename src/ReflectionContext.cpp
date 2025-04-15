@@ -44,7 +44,26 @@ void ReflectionContext::ForwardDecls(std::stringstream& ss) const
     
     if (mName.length() > 0)
     {
-        ss << "} // " << mName << "\n\n";
+        ss << "} // namespace " << mName << "\n\n";
+    }
+}
+
+void ReflectionContext::CodeGen(std::stringstream& ss) const
+{
+    for (const auto& [guid, classDesc] : mClasses)
+    {
+        ss << "template<>\n";
+        ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classDesc.ResolveName() << ">()\n";
+        ss << "{\n";
+        ss << "\tstatic const ClassDescription desc = ClassDescription();\n";
+        ss << "\treturn desc;\n";
+        ss << "}\n\n";
+    }
+    
+    for (const auto& context : mContexts)
+    {
+        ss << "\n";
+        context.CodeGen(ss);
     }
 }
 
