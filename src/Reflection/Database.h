@@ -1,12 +1,19 @@
 #pragma once
-#include "Meta.h"
+#include "BinaryBuffer.h"
 
 #include <filesystem>
 #include <unordered_map>
 
 namespace Gleam::Reflection {
 
-struct BinaryHeader
+class ClassDescription;
+class EnumDescription;
+
+namespace Attribute {
+struct Guid;
+} // namespace Attribute
+
+struct DatabaseHeader
 {
     char magic[8];  // "GLEAMREF"
     uint32_t version;
@@ -14,31 +21,6 @@ struct BinaryHeader
     uint32_t enumCount;
     size_t classTableOffset;
     size_t enumTableOffset;
-};
-
-struct BinaryBuffer
-{
-    void* data = nullptr;
-    size_t size = 0;
-    
-    void Allocate(size_t newSize)
-    {
-        if (size == newSize || newSize == 0) { return; }
-        if (data) { Free(); }
-        
-        size = newSize;
-        data = ::operator new(newSize);
-    }
-    
-    void Free()
-    {
-        if (data)
-        {
-            ::operator delete(data);
-            data = nullptr;
-            size = 0;
-        }
-    }
 };
 
 class Database
@@ -54,10 +36,20 @@ public:
     
     const EnumDescription* GetEnum(uint32_t hash) const;
     const EnumDescription* GetEnum(const Attribute::Guid& guid) const;
+
+	template<typename T>
+    const T* GetObject(const BufferView& view) const
+    {
+        if ((view.offset + view.size) > mBuffer.size)
+        {
+            return nullptr;
+        }
+        return Utils::OffsetPointer<T>(mBuffer.data, view.offset);
+    }
     
 private:
     
-    void BuildLookupTables(const BinaryHeader* header);
+    void BuildLookupTables(const DatabaseHeader* header);
     
     std::unordered_map<uint32_t, size_t> mClassHashToOffsets;
     std::unordered_map<uint32_t, size_t> mEnumHashToOffsets;
@@ -68,5 +60,6 @@ private:
     BinaryBuffer mBuffer;
     
 };
+extern Database* gReflectionDatabase = nullptr;
 
 } // namespace Gleam::Reflection

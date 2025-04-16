@@ -1,12 +1,13 @@
 #pragma once
 #include "Attribute.h"
+#include "Database.h"
 
 #include <string_view>
 #include <cstdint>
 #include <cstddef>
 #include <cassert>
 #include <variant>
-#include <vector>
+#include <span>
 
 namespace Gleam {
 class ReflectionParser;
@@ -50,7 +51,7 @@ class MetaDescription
 public:
     
     MetaDescription(const std::string_view name,
-                    const std::vector<IAttribute*>& attributes,
+                    const BufferView& attributes,
                     const Attribute::Guid& guid,
                     uint32_t typeHash)
         : mName(name)
@@ -81,34 +82,43 @@ public:
 	template<AttributeType Attrib>
 	constexpr bool HasAttribute() const
 	{
-		for (const auto attrib : mAttributes)
-		{
-			if (attrib->GetDescription().hash == Attrib::description.hash)
+		const auto attribs = gReflectionDatabase->GetObject<AttributeDescription>(mAttributes);
+		const auto numAttribs = mAttributes.size / sizeof(AttributeDescription);
+
+        for (uint32_t i = 0; i < numAttribs; ++i)
+        {
+			if (attribs[i].GetDescription().hash == Attrib::description.hash)
 			{
 				return true;
 			}
-		}
+        }
         return false;
 	}
 
 	template<AttributeType Attrib>
 	constexpr const Attrib* GetAttribute() const
 	{
-		for (const auto attrib : mAttributes)
+		const auto attribs = gReflectionDatabase->GetObject<AttributeDescription>(mAttributes);
+		const auto numAttribs = mAttributes.size / sizeof(AttributeDescription);
+
+		for (uint32_t i = 0; i < numAttribs; ++i)
 		{
-			if (attrib->GetDescription().hash == Attrib::description.hash)
+			if (attribs[i].GetDescription().hash == Attrib::description.hash)
 			{
-                return static_cast<const Attrib*>(attrib);
+				// TODO: retrieve attribute from the database
+				// add size to the attribute description
+                // refactor GLEAM_ATTRIBUTE to enforce POD types
 			}
 		}
+        return nullptr;
 	}
     
 private:
     
     uint32_t mTypeHash = 0;
+    BufferView mAttributes = {};
     const std::string_view mName = "";
     Attribute::Guid mGuid = Attribute::Guid::InvalidGuid();
-    std::vector<IAttribute*> mAttributes = {};
 };
 
 class FieldDescription : public MetaDescription
@@ -171,7 +181,7 @@ class EnumDescription : public MetaDescription
 {
 public:
     
-	EnumDescription(const MetaDescription& meta, size_t size, const std::vector<EnumCaseDescription>& cases)
+	EnumDescription(const MetaDescription& meta, size_t size, const BufferView& cases)
 		: MetaDescription(meta)
 		, mSize(size)
 		, mCases(cases)
@@ -184,15 +194,16 @@ public:
         return mSize;
     }
     
-    constexpr const std::vector<EnumCaseDescription>& Cases() const
+    constexpr auto Cases() const
     {
-        return mCases;
+        const auto ptr = gReflectionDatabase->GetObject<EnumCaseDescription>(mCases);
+        return std::span{ ptr, mCases.size / sizeof(EnumCaseDescription) };
     }
     
 private:
     
     size_t mSize = 0;
-    std::vector<EnumCaseDescription> mCases = {};
+    BufferView mCases = {};
     
 };
 
@@ -200,7 +211,7 @@ class ClassDescription : public MetaDescription
 {
 public:
     
-    ClassDescription(const MetaDescription& meta, size_t size, const std::vector<FieldDescription>& fields, const std::vector<ClassDescription>& bases)
+    ClassDescription(const MetaDescription& meta, size_t size, const BufferView& fields, const BufferView& bases)
 		: MetaDescription(meta)
 		, mSize(size)
 		, mFields(fields)
@@ -209,14 +220,16 @@ public:
         
     }
     
-    constexpr const std::vector<FieldDescription>& ResolveFields() const
+    constexpr auto ResolveFields() const
     {
-        return mFields;
+		const auto ptr = gReflectionDatabase->GetObject<FieldDescription>(mFields);
+		return std::span{ ptr, mFields.size / sizeof(FieldDescription) };
     }
     
-    constexpr const std::vector<ClassDescription>& ResolveBaseClasses() const
+    constexpr auto ResolveBaseClasses() const
     {
-        return mBaseClasses;
+		const auto ptr = gReflectionDatabase->GetObject<ClassDescription>(mBaseClasses);
+		return std::span{ ptr, mBaseClasses.size / sizeof(ClassDescription) };
     }
     
     constexpr size_t GetSize() const
@@ -227,8 +240,8 @@ public:
 private:
     
     size_t mSize = 0;
-    std::vector<FieldDescription> mFields = {};
-    std::vector<ClassDescription> mBaseClasses = {};
+    BufferView mFields = {};
+    BufferView mBaseClasses = {};
 };
 
 class ArrayDescription

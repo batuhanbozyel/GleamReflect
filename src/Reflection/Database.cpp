@@ -1,4 +1,5 @@
 #include "Database.h"
+#include "Meta.h"
 
 #include <fstream>
 #include <iostream>
@@ -20,7 +21,7 @@ bool Database::Initialize(const std::filesystem::path& path)
     mBuffer.Allocate(bufferSize);
     file.read(reinterpret_cast<char*>(mBuffer.data), mBuffer.size);
     
-    const auto header = reinterpret_cast<const BinaryHeader*>(mBuffer.data);
+    const auto header = reinterpret_cast<const DatabaseHeader*>(mBuffer.data);
     if (std::string_view(header->magic) != "GLEAMREF")
     {
         std::cerr << "Invalid reflection data file format" << std::endl;
@@ -83,7 +84,7 @@ const EnumDescription* Database::GetEnum(const Attribute::Guid& guid) const
     return nullptr;
 }
 
-void Database::BuildLookupTables(const BinaryHeader* header)
+void Database::BuildLookupTables(const DatabaseHeader* header)
 {
     for (uint32_t i = 0; i < header->classCount; ++i)
     {
