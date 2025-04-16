@@ -3,6 +3,13 @@
 
 namespace Gleam::Reflection::Utils {
 
+template<typename T = void>
+static constexpr const T* OffsetPointer(const void* ptr, size_t offset)
+{
+    ptr = static_cast<const char*>(ptr) + offset;
+    return static_cast<const T*>(ptr);
+}
+
 static constexpr uint8_t HexDigitToByte(const char ch)
 {
     // 0-9
