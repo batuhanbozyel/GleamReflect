@@ -11,7 +11,7 @@ ReflectionContext::ReflectionContext(const std::string_view name, const std::str
     
 }
 
-void ReflectionContext::ForwardDecls(std::stringstream& ss) const
+void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 {
 	if (mEnums.empty() && mClasses.empty() && mContexts.empty())
 	{
@@ -38,7 +38,7 @@ void ReflectionContext::ForwardDecls(std::stringstream& ss) const
         for (const auto& context : mContexts)
         {
             ss << "\n";
-            context.ForwardDecls(ss);
+            context.GenerateForwardDecls(ss);
         }
     }
     
@@ -48,7 +48,7 @@ void ReflectionContext::ForwardDecls(std::stringstream& ss) const
     }
 }
 
-void ReflectionContext::CodeGen(std::stringstream& ss) const
+void ReflectionContext::GenerateClassDescs(std::stringstream& ss, Reflection::BinaryWriter& writer) const
 {
     for (const auto& [guid, classDesc] : mClasses)
     {
@@ -63,7 +63,7 @@ void ReflectionContext::CodeGen(std::stringstream& ss) const
     for (const auto& context : mContexts)
     {
         ss << "\n";
-        context.CodeGen(ss);
+        context.GenerateClassDescs(ss, writer);
     }
 }
 

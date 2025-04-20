@@ -8,15 +8,19 @@
 #include <unordered_map>
 
 namespace clang {
-    class ASTContext;
-    class Decl;
-    class DeclContext;
-    class EnumDecl;
-    class CXXRecordDecl;
-    class FieldDecl;
+class ASTContext;
+class Decl;
+class DeclContext;
+class EnumDecl;
+class CXXRecordDecl;
+class FieldDecl;
 }
 
 namespace Gleam {
+
+namespace Reflection {
+class BinaryWriter;
+} // namespace Reflection
 
 class ReflectionContext
 {
@@ -26,8 +30,8 @@ public:
     
     explicit ReflectionContext(const std::string_view name, const std::string& qualifiedName);
     
-	void ForwardDecls(std::stringstream& ss) const;
-    void CodeGen(std::stringstream& ss) const;
+	void GenerateForwardDecls(std::stringstream& ss) const;
+    void GenerateClassDescs(std::stringstream& ss, Reflection::BinaryWriter& writer) const;
 
     void EmplaceContext(const ReflectionContext& context);
     

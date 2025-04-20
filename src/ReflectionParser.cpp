@@ -1,5 +1,6 @@
 #include "ReflectionParser.h"
 #include "Attributes.h"
+#include "Serialization/BinaryWriter.h"
 
 #include <clang/AST/AST.h>
 #include <clang/Tooling/Tooling.h>
@@ -55,25 +56,37 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
     std::stringstream generatedCode;
     generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
 	generatedCode << "#include <Reflection/Meta.h>\n";
-
-    mContext.ForwardDecls(generatedCode);
+    mContext.GenerateForwardDecls(generatedCode);
     
+	Reflection::BinaryWriter writer;
     generatedCode << "namespace Gleam::Reflection {\n\n";
     generatedCode << "template<typename T>\n";
     generatedCode << "const ClassDescription& GetClass()\n";
     generatedCode << "{\n";
     generatedCode << "\tstatic_assert(false, \"Class is not reflected\");\n";
     generatedCode << "}\n";
-    mContext.CodeGen(generatedCode);
+    mContext.GenerateClassDescs(generatedCode, writer);
     generatedCode << "} // namespace Gleam::Reflection\n";
     
     generatedCode << "#endif // __GLEAM_REFLECTION__\n";
     
-    auto filename = outputDir / "Reflection.generated.h";
-    std::ofstream file(filename, std::ios::out | std::ios::trunc);
-    
-    auto generatedCodeStr = generatedCode.str();
-    file.write(generatedCodeStr.c_str(), generatedCodeStr.length());
+    // Generated header
+	{
+		auto filename = outputDir / "Reflection.generated.h";
+		std::ofstream file(filename, std::ios::out | std::ios::trunc);
+
+		auto generatedCodeStr = generatedCode.str();
+		file.write(generatedCodeStr.c_str(), generatedCodeStr.length());
+	}
+
+	// Generated database
+    {
+		auto filename = outputDir / "Reflection.db";
+		std::ofstream file(filename, std::ios::out | std::ios::trunc | std::ios::binary);
+
+        const auto& buffer = writer.GetBuffer();
+		file.write(reinterpret_cast<const char*>(buffer.data), writer.GetCursor());
+    }
 }
 
 const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl)

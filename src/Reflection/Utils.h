@@ -4,6 +4,13 @@
 namespace Gleam::Reflection::Utils {
 
 template<typename T = void>
+static constexpr T* OffsetPointer(void* ptr, size_t offset)
+{
+    ptr = static_cast<char*>(ptr) + offset;
+    return static_cast<T*>(ptr);
+}
+
+template<typename T = void>
 static constexpr const T* OffsetPointer(const void* ptr, size_t offset)
 {
     ptr = static_cast<const char*>(ptr) + offset;

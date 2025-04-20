@@ -64,30 +64,30 @@ public:
     
     virtual ~MetaDescription() = default;
     
-    constexpr uint32_t TypeHash() const
+    uint32_t TypeHash() const
     {
         return mTypeHash;
     }
     
-    constexpr const Attribute::Guid& Guid() const
+    const Attribute::Guid& Guid() const
     {
         return mGuid;
     }
     
-    constexpr const std::string_view ResolveName() const
+    const std::string_view ResolveName() const
     {
         return mName;
     }
     
 	template<AttributeType Attrib>
-	constexpr bool HasAttribute() const
+	bool HasAttribute() const
 	{
 		const auto attribs = gReflectionDatabase->GetObject<AttributeDescription>(mAttributes);
 		const auto numAttribs = mAttributes.size / sizeof(AttributeDescription);
 
         for (uint32_t i = 0; i < numAttribs; ++i)
         {
-			if (attribs[i].GetDescription().hash == Attrib::description.hash)
+			if (attribs[i].hash == Attrib::description.hash)
 			{
 				return true;
 			}
@@ -96,18 +96,25 @@ public:
 	}
 
 	template<AttributeType Attrib>
-	constexpr const Attrib* GetAttribute() const
+	const Attrib* GetAttribute() const
 	{
 		const auto attribs = gReflectionDatabase->GetObject<AttributeDescription>(mAttributes);
 		const auto numAttribs = mAttributes.size / sizeof(AttributeDescription);
 
 		for (uint32_t i = 0; i < numAttribs; ++i)
 		{
-			if (attribs[i].GetDescription().hash == Attrib::description.hash)
+			if (attribs[i].hash == Attrib::description.hash)
 			{
-				// TODO: retrieve attribute from the database
-				// add size to the attribute description
-                // refactor GLEAM_ATTRIBUTE to enforce POD types
+				const auto view = gReflectionDatabase->GetObject<BufferView>(
+                {
+					.offset = mAttributes.offset + mAttributes.size + i * sizeof(BufferView),
+					.size = sizeof(BufferView)
+			    });
+                assert(view != nullptr && "Attribute view is not found in the database");
+
+                const auto attrib = gReflectionDatabase->GetObject<Attrib>(*view);
+				assert(attrib != nullptr && "Attribute is not found in the database");
+                return attrib;
 			}
 		}
         return nullptr;
@@ -134,17 +141,17 @@ public:
         
     }
     
-    constexpr size_t GetOffset() const
+    size_t GetOffset() const
     {
         return mOffset;
     }
     
-    constexpr size_t GetSize() const
+    size_t GetSize() const
     {
         return mSize;
     }
     
-    constexpr MetaType GetType() const
+    MetaType GetType() const
     {
         return mType;
     }
@@ -167,7 +174,7 @@ public:
         
     }
     
-    constexpr int64_t Value() const
+    int64_t Value() const
     {
         return mValue;
     }
@@ -189,12 +196,12 @@ public:
         
     }
     
-    constexpr size_t GetSize() const
+    size_t GetSize() const
     {
         return mSize;
     }
     
-    constexpr auto Cases() const
+    auto Cases() const
     {
         const auto ptr = gReflectionDatabase->GetObject<EnumCaseDescription>(mCases);
         return std::span{ ptr, mCases.size / sizeof(EnumCaseDescription) };
@@ -220,19 +227,19 @@ public:
         
     }
     
-    constexpr auto ResolveFields() const
+    auto ResolveFields() const
     {
 		const auto ptr = gReflectionDatabase->GetObject<FieldDescription>(mFields);
 		return std::span{ ptr, mFields.size / sizeof(FieldDescription) };
     }
     
-    constexpr auto ResolveBaseClasses() const
+    auto ResolveBaseClasses() const
     {
 		const auto ptr = gReflectionDatabase->GetObject<ClassDescription>(mBaseClasses);
 		return std::span{ ptr, mBaseClasses.size / sizeof(ClassDescription) };
     }
     
-    constexpr size_t GetSize() const
+    size_t GetSize() const
     {
         return mSize;
     }
@@ -250,27 +257,27 @@ class ArrayDescription
     friend class Gleam::ReflectionContext;
 public:
     
-    constexpr size_t GetSize() const
+    size_t GetSize() const
     {
         return mSize;
     }
     
-    constexpr size_t GetStride() const
+    size_t GetStride() const
     {
         return mStride;
     }
     
-    constexpr uint32_t TypeHash() const
+    uint32_t TypeHash() const
     {
         return mTypeHash;
     }
     
-    constexpr uint32_t ElementHash() const
+    uint32_t ElementHash() const
     {
         return mElementHash;
     }
     
-    constexpr MetaType ElementType() const
+    MetaType ElementType() const
     {
         return mElementType;
     }

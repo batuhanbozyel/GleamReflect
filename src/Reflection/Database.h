@@ -1,5 +1,5 @@
 #pragma once
-#include "BinaryBuffer.h"
+#include "Serialization/BinaryBuffer.h"
 
 #include <filesystem>
 #include <unordered_map>

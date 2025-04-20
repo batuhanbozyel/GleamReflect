@@ -24,11 +24,7 @@ struct AttributeDescription
     }
 };
 
-struct IAttribute
-{
-	virtual ~IAttribute() = default;
-    virtual const AttributeDescription& GetDescription() const = 0;
-};
+struct IAttribute {};
 
 namespace Attribute {
 
@@ -43,18 +39,18 @@ GLEAM_ATTRIBUTE(Guid)
             uint16_t mData3;
             uint8_t mData4[8];
         };
-        uint8_t bytes[16];
+        uint8_t mBytes[16];
     };
     
     explicit constexpr Guid()
-        : bytes{0}
+        : mBytes{0}
     {
         
     }
     
     template<size_t N>
     explicit constexpr Guid(const char (&str)[N])
-        : bytes{
+        : mBytes{
         static_cast<uint8_t>((Utils::HexDigitToByte(str[6]) << 4) | (Utils::HexDigitToByte(str[7]) << 0)),
         static_cast<uint8_t>((Utils::HexDigitToByte(str[4]) << 4) | (Utils::HexDigitToByte(str[5]) << 0)),
         static_cast<uint8_t>((Utils::HexDigitToByte(str[2]) << 4) | (Utils::HexDigitToByte(str[3]) << 0)),
@@ -87,7 +83,7 @@ GLEAM_ATTRIBUTE(Guid)
     }
     
     explicit constexpr Guid(const char* str)
-        : bytes{
+        : mBytes{
         static_cast<uint8_t>((Utils::HexDigitToByte(str[6]) << 4) | (Utils::HexDigitToByte(str[7]) << 0)),
         static_cast<uint8_t>((Utils::HexDigitToByte(str[4]) << 4) | (Utils::HexDigitToByte(str[5]) << 0)),
         static_cast<uint8_t>((Utils::HexDigitToByte(str[2]) << 4) | (Utils::HexDigitToByte(str[3]) << 0)),
@@ -151,7 +147,7 @@ GLEAM_ATTRIBUTE(Guid)
     
     bool operator==(const Guid& other) const
     {
-        return memcmp(bytes, other.bytes, sizeof(bytes)) == 0;
+        return memcmp(mBytes, other.mBytes, sizeof(mBytes)) == 0;
     }
     
     bool operator!=(const Guid& other) const

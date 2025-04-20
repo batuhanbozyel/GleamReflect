@@ -31,6 +31,20 @@ struct BinaryBuffer
             size = 0;
         }
     }
+
+    void Resize(size_t newSize)
+    {
+        if (size >= newSize || newSize == 0) { return; }
+        
+        void* buffer = ::operator new(newSize);
+        if (data)
+        { 
+            std::memcpy(buffer, data, size);
+            Free();
+        }
+        size = newSize;
+        data = buffer;
+    }
 };
 
 } // namespace Gleam::Reflection
