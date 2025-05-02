@@ -1,13 +1,12 @@
 #pragma once
 #include "Attribute.h"
 #include "Database.h"
+#include "Container/SparseArray.h"
 
 #include <string_view>
 #include <cstdint>
-#include <cstddef>
 #include <cassert>
 #include <variant>
-#include <span>
 
 namespace Gleam {
 class ReflectionParser;
@@ -218,7 +217,7 @@ public:
     auto Cases() const
     {
         const auto ptr = gReflectionDatabase->GetObject<EnumCaseDescription>(mCases);
-        return std::span{ ptr, mCases.size / sizeof(EnumCaseDescription) };
+        return DenseArrayView{ ptr, mCases.size / sizeof(EnumCaseDescription) };
     }
     
 private:
@@ -244,13 +243,15 @@ public:
     auto ResolveFields() const
     {
 		const auto ptr = gReflectionDatabase->GetObject<FieldDescription>(mFields);
-		return std::span{ ptr, mFields.size / sizeof(FieldDescription) };
+		return DenseArrayView{ ptr, mFields.size / sizeof(FieldDescription) };
     }
     
     auto ResolveBaseClasses() const
     {
-		const auto ptr = gReflectionDatabase->GetObject<ClassDescription>(mBaseClasses);
-		return std::span{ ptr, mBaseClasses.size / sizeof(ClassDescription) };
+		const auto ptr = gReflectionDatabase->GetObject<uint32_t>(mBaseClasses);
+		auto indices = DenseArrayView{ ptr, mBaseClasses.size / sizeof(BufferView) };
+        auto classes = gReflectionDatabase->GetClasses();
+        return SparseArrayView{ classes.data(), indices };
     }
     
     size_t GetSize() const

@@ -1,5 +1,6 @@
 #pragma once
 #include "Serialization/BinaryBuffer.h"
+#include "Container/DenseArray.h"
 
 #include <filesystem>
 #include <unordered_map>
@@ -36,6 +37,18 @@ public:
     
     const EnumDescription* GetEnum(uint32_t hash) const;
     const EnumDescription* GetEnum(const Attribute::Guid& guid) const;
+
+    DenseArrayView<ClassDescription> GetClasses() const
+    {
+		const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
+        return DenseArrayView{ Utils::OffsetPointer<ClassDescription>(mBuffer.data, header->classTableOffset), header->classCount };
+    }
+
+	DenseArrayView<EnumDescription> GetEnums() const
+	{
+		const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
+		return DenseArrayView{ Utils::OffsetPointer<EnumDescription>(mBuffer.data, header->enumTableOffset), header->enumCount };
+	}
 
 	template<typename T>
     const T* GetObject(const BufferView& view) const
