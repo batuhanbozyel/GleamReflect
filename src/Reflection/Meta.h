@@ -51,18 +51,20 @@ class MetaDescription
 public:
     
     MetaDescription(const std::string_view name,
+                    const std::string_view nspace,
+                    const std::string_view qualifiedNSpace,
                     const BufferView& attributes,
                     const Attribute::Guid& guid,
                     uint32_t typeHash)
         : mName(name)
+        , mNamespace(nspace)
+        , mQualifiedNamespace(qualifiedNSpace)
         , mGuid(guid)
         , mTypeHash(typeHash)
 		, mAttributes(attributes)
     {
         
     }
-    
-    virtual ~MetaDescription() = default;
     
     uint32_t TypeHash() const
     {
@@ -77,6 +79,16 @@ public:
     const std::string_view ResolveName() const
     {
         return mName;
+    }
+    
+    const std::string_view ResolveNamespace() const
+    {
+        return mNamespace;
+    }
+    
+    const std::string_view ResolveQualifiedNamespace() const
+    {
+        return mQualifiedNamespace;
     }
     
 	template<AttributeType Attrib>
@@ -125,6 +137,8 @@ private:
     uint32_t mTypeHash = 0;
     BufferView mAttributes = {};
     const std::string_view mName = "";
+    const std::string_view mNamespace = "";
+    const std::string_view mQualifiedNamespace = "";
     Attribute::Guid mGuid = Attribute::Guid::InvalidGuid();
 };
 

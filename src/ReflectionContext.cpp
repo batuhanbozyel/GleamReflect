@@ -1,4 +1,5 @@
 #include "ReflectionContext.h"
+#include "Serialization/BinaryWriter.h"
 
 #include <clang/Tooling/Tooling.h>
 
@@ -13,7 +14,7 @@ ReflectionContext::ReflectionContext(const std::string_view name, const std::str
 
 void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 {
-	if (mEnums.empty() && mClasses.empty() && mContexts.empty())
+	if (mGuidToEnum.empty() && mGuidToClass.empty() && mContexts.empty())
 	{
 		return;
 	}
@@ -25,12 +26,12 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
     
     // Forward declarations
     {
-        for (const auto& [guid, enumDesc] : mEnums)
+        for (const auto& [guid, enumDesc] : mGuidToEnum)
         {
             ss << "enum class " << enumDesc.ResolveName() << ";\n";
         }
         ss << "\n";
-        for (const auto& [guid, classDesc] : mClasses)
+        for (const auto& [guid, classDesc] : mGuidToClass)
         {
             ss << "class " << classDesc.ResolveName() << ";\n";
         }
@@ -48,15 +49,23 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
     }
 }
 
-void ReflectionContext::GenerateClassDescs(std::stringstream& ss, Reflection::BinaryWriter& writer) const
+void ReflectionContext::GenerateClassDescs(std::stringstream& ss) const
 {
-    for (const auto& [guid, classDesc] : mClasses)
+    for (const auto& [guid, index] : mGuidToClass)
     {
+        const auto& classDesc = mClasses[index];
+        auto classOffset = index * sizeof(Reflection::ClassDescription);
+        
         ss << "template<>\n";
         ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classDesc.ResolveName() << ">()\n";
         ss << "{\n";
-        ss << "\tstatic const ClassDescription desc = ClassDescription();\n";
-        ss << "\treturn desc;\n";
+        ss << "\tstatic const auto desc = gReflectionDatabase->GetObject<ClassDescription>(\n";
+        ss << "\t{\n";
+        ss << "\t\t.offset = " << classOffset << ",\n";
+        ss << "\t\t.size = sizeof(ClassDescription)\n";
+        ss << "\t});\n";
+        ss << "\tassert(desc != nullptr);\n";
+        ss << "\treturn *desc;\n";
         ss << "}\n\n";
     }
     
@@ -72,58 +81,98 @@ void ReflectionContext::EmplaceContext(const ReflectionContext& context)
     mContexts.emplace_back(context);
 }
 
-const Reflection::ArrayDescription* ReflectionContext::RegisterArray(const Reflection::ArrayDescription& arrayDesc)
+uint32_t ReflectionContext::RegisterArray(const Reflection::ArrayDescription& arrayDesc)
 {
     uint32_t hash = static_cast<uint32_t>(mArrays.size());
     auto& desc = mArrays.emplace_back(arrayDesc);
     desc.mTypeHash = hash;
-    return &desc;
+    return hash;
 }
 
-const Reflection::ClassDescription* ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc)
+uint32_t ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc)
 {
-    return &mClasses.emplace_hint(mClasses.end(), classDesc.Guid(), classDesc)->second;
+    auto it = mGuidToClass.find(classDesc.Guid());
+    if (it != mGuidToClass.end())
+    {
+        return it->second;
+    }
+    
+    uint32_t index = static_cast<uint32_t>(mClasses.size());
+    mGuidToClass.emplace_hint(mGuidToClass.end(), classDesc.Guid(), index);
+    mClasses.emplace_back(classDesc);
+    return index;
 }
 
-const Reflection::EnumDescription* ReflectionContext::RegisterEnum(const Reflection::EnumDescription& enumDesc)
+uint32_t ReflectionContext::RegisterEnum(const Reflection::EnumDescription& enumDesc)
 {
-    return &mEnums.emplace_hint(mEnums.end(), enumDesc.Guid(), enumDesc)->second;
+    auto it = mGuidToEnum.find(enumDesc.Guid());
+    if (it != mGuidToEnum.end())
+    {
+        return it->second;
+    }
+    
+    uint32_t index = static_cast<uint32_t>(mEnums.size());
+    mGuidToEnum.emplace_hint(mGuidToEnum.end(), enumDesc.Guid(), index);
+    mEnums.emplace_back(enumDesc);
+    return index;
 }
 
-const Reflection::ClassDescription* ReflectionContext::GetClass(const Reflection::Attribute::Guid& guid) const
+uint32_t ReflectionContext::GetClassIndex(const Reflection::Attribute::Guid& guid) const
 {
-    auto it = mClasses.find(guid);
-    if (it == mClasses.end())
+    auto it = mGuidToClass.find(guid);
+    if (it == mGuidToClass.end())
     {
         for (const auto& context : mContexts)
         {
-            auto classDesc = context.GetClass(guid);
-            if (classDesc)
+            auto index = context.GetClassIndex(guid);
+            if (index < mClasses.size())
             {
-                return classDesc;
+                return index;
             }
         }
-        return nullptr;
+        return InvalidMetaIndex;
     }
-    return &it->second;
+    return it->second;
 }
 
-const Reflection::EnumDescription* ReflectionContext::GetEnum(const Reflection::Attribute::Guid& guid) const
+uint32_t ReflectionContext::GetEnumIndex(const Reflection::Attribute::Guid& guid) const
 {
-    auto it = mEnums.find(guid);
-    if (it == mEnums.end())
+    auto it = mGuidToEnum.find(guid);
+    if (it == mGuidToEnum.end())
     {
         for (const auto& context : mContexts)
         {
-            auto enumDesc = context.GetEnum(guid);
-            if (enumDesc)
+            auto index = context.GetEnumIndex(guid);
+            if (index < mEnums.size())
             {
-                return enumDesc;
+                return index;
             }
         }
-        return nullptr;
+        return InvalidMetaIndex;
     }
-    return &it->second;
+    return it->second;
+}
+
+bool ReflectionContext::Contains(const Reflection::Attribute::Guid& guid) const
+{
+    if (mGuidToEnum.contains(guid))
+    {
+        return true;
+    }
+    
+    if (mGuidToClass.contains(guid))
+    {
+        return true;
+    }
+    
+    for (const auto& ctx : mContexts)
+    {
+        if (ctx.Contains(guid))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 const std::string_view ReflectionContext::Name() const

@@ -3,11 +3,14 @@
 
 #include <fstream>
 #include <iostream>
+#include <string_view>
 
 using namespace Gleam::Reflection;
 
 bool Database::Initialize(const std::filesystem::path& path)
 {
+    gReflectionDatabase = this;
+    
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (not file.is_open())
     {

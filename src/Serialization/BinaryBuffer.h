@@ -1,4 +1,7 @@
 #pragma once
+#include "Reflection/Utils.h"
+
+#include <cstring>
 
 namespace Gleam::Reflection {
 
@@ -39,7 +42,7 @@ struct BinaryBuffer
         void* buffer = ::operator new(newSize);
         if (data)
         { 
-            std::memcpy(buffer, data, size);
+            memcpy(buffer, data, size);
             Free();
         }
         size = newSize;
