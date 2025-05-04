@@ -53,11 +53,12 @@ public:
 	template<typename T>
     const T* GetObject(const BufferView& view) const
     {
-        if ((view.offset + view.size) > mBuffer.size)
+		auto offset = view.offset + sizeof(DatabaseHeader);
+        if ((offset + view.size) > mBuffer.size)
         {
             return nullptr;
         }
-        return Utils::OffsetPointer<T>(mBuffer.data, view.offset);
+        return Utils::OffsetPointer<T>(mBuffer.data, offset);
     }
     
 private:

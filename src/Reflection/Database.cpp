@@ -22,10 +22,10 @@ bool Database::Initialize(const std::filesystem::path& path)
     file.seekg(0);
     
     mBuffer.Allocate(bufferSize);
-    file.read(reinterpret_cast<char*>(mBuffer.data), mBuffer.size);
+    file.read(static_cast<char*>(mBuffer.data), mBuffer.size);
     
-    const auto header = reinterpret_cast<const DatabaseHeader*>(mBuffer.data);
-    if (std::string_view(header->magic) != "GLEAMREF")
+    const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
+    if (memcmp(header->magic, "GLEAMREF", sizeof(header->magic)) != 0)
     {
         std::cerr << "Invalid reflection data file format" << std::endl;
         mBuffer.Free();

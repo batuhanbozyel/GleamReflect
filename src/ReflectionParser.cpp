@@ -87,9 +87,9 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
         
         Reflection::DatabaseHeader header;
         header.version = 0;
-        header.magic = "GLEAMREF";
         header.classCount = static_cast<uint32_t>(mContext.mClasses.size());
         header.enumCount = static_cast<uint32_t>(mContext.mEnums.size());
+		memcpy(header.magic, "GLEAMREF", sizeof(header.magic));
         writer.Write(header);
         
         auto serializedHeader = reinterpret_cast<Reflection::DatabaseHeader*>(writer.GetBuffer().data);
