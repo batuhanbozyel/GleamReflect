@@ -20,6 +20,11 @@ public:
 
     BufferView Write(const void* data, size_t size)
     {
+		if (size == 0 || data == nullptr)
+		{
+			return {};
+		}
+
         size_t requiredSize = mCursor + size;
         if (mBuffer.size < requiredSize)
         {

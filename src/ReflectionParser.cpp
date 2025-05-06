@@ -91,6 +91,9 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
         header.enumCount = static_cast<uint32_t>(mContext.mEnums.size());
 		memcpy(header.magic, "GLEAMREF", sizeof(header.magic));
         writer.Write(header);
+
+        const auto& objectBuffer = mObjectWriter.GetBuffer();
+        writer.Write(objectBuffer.data, objectBuffer.size);
         
         auto serializedHeader = reinterpret_cast<Reflection::DatabaseHeader*>(writer.GetBuffer().data);
         
@@ -105,7 +108,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
     }
 }
 
-const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl)
+EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl)
 {
     auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
@@ -116,13 +119,13 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
         const auto& guid = ExtractGuid(attributes);
         assert(guid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum is missing GUID attribute");
         
-        if (const auto enumDesc = context.GetEnum(guid); enumDesc != nullptr)
+        if (const auto enumHandle = context.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
         {
-            return enumDesc; // already processed
+            return enumHandle; // already processed
         }
         
         std::stringstream qualifiedName;
-        qualifiedName << context.QualifiedName() << "::" << enumDecl->getName();
+        qualifiedName << context.QualifiedName() << "::" << std::string_view(enumDecl->getName());
         
         auto& astContext = enumDecl->getASTContext();
         uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.str().c_str());
@@ -156,16 +159,17 @@ const Reflection::EnumDescription* ReflectionParser::HandleEnumDecl(ReflectionCo
                 enumCases.emplace_back(enumCase);
             }
         }
-        return context.RegisterEnum(Reflection::EnumDescription({ enumDecl->getName(), context.Name(), context.QualifiedName(), attributes, guid, typeHash }, enumSize, enumCases));
+        Reflection::BufferView cases = mObjectWriter.Write(enumCases.data(), enumCases.size() * sizeof(Reflection::EnumCaseDescription));
+        return context.RegisterEnum(Reflection::EnumDescription({ enumDecl->getName(), context.Name(), context.QualifiedName(), attributes, guid, typeHash }, enumSize, cases));
     }
-    return nullptr;
+    return {};
 }
 
-const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(ReflectionContext& context, const clang::CXXRecordDecl* recordDecl)
+ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const clang::CXXRecordDecl* recordDecl)
 {
     if (recordDecl == nullptr)
     {
-        return nullptr;
+        return {};
     }
     
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
@@ -177,31 +181,31 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
         const auto& recordGuid = ExtractGuid(recordAttribs);
         assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
         
-        if (const auto classDesc = context.GetClass(recordGuid); classDesc != nullptr)
+        if (const auto classHandle = context.GetClassHandle(recordGuid); classHandle != InvalidMetaIndex)
         {
-            return classDesc; // already processed
+            return classHandle; // already processed
         }
         
         auto& astContext = recordDecl->getASTContext();
         size_t classSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
         
         // Process bases
-		std::vector<Reflection::ClassDescription> baseClasses;
+		std::vector<ClassHandle> baseClasses;
         for (const auto& base : recordDecl->bases())
         {
             const auto baseRecord = base.getType()->getAsCXXRecordDecl();
             if (baseRecord && baseRecord->hasAttr<clang::AnnotateAttr>() && baseRecord->isCompleteDefinition())
             {
-                auto baseDesc = HandleRecordDecl(context, baseRecord);
-                if (baseDesc != nullptr)
+                auto baseHandle = HandleRecordDecl(context, baseRecord);
+                if (baseHandle != InvalidMetaIndex)
                 {
-                    baseClasses.emplace_back(*baseDesc);
+                    baseClasses.emplace_back(baseHandle);
                 }
             }
         }
         
         // Process fields
-        std::vector<Reflection::FieldDescription> fields;
+        std::vector<Reflection::FieldDescription> fieldDescs;
         for (const auto field : recordDecl->fields())
         {
             auto annotateAttr = field->getAttr<clang::AnnotateAttr>();
@@ -225,7 +229,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     if (arrayType->isConstantArrayType())
                     {
                         metaType = Reflection::MetaType::Array;
-                        typeHash = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(arrayType))->TypeHash();
+                        typeHash = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(arrayType));
                     }
                 }
                 else if (fieldType->isRecordType())
@@ -233,7 +237,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     const clang::RecordType* recordType = fieldType->getAs<clang::RecordType>();
                     
                     std::stringstream qualifiedName;
-                    qualifiedName << context.QualifiedName() << "::" << recordType->getDecl()->getName();
+                    qualifiedName << context.QualifiedName() << "::" << std::string_view(recordType->getDecl()->getName());
                     
                     metaType = Reflection::MetaType::Class;
                     typeHash = Reflection::Utils::HashString(qualifiedName.str().c_str());
@@ -243,7 +247,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     const clang::EnumType* enumType = fieldType->getAs<clang::EnumType>();
                     
                     std::stringstream qualifiedName;
-                    qualifiedName << context.QualifiedName() << "::" << enumType->getDecl()->getName();
+                    qualifiedName << context.QualifiedName() << "::" << std::string_view(enumType->getDecl()->getName());
                     
                     metaType = Reflection::MetaType::Enum;
                     typeHash = Reflection::Utils::HashString(qualifiedName.str().c_str());
@@ -260,7 +264,7 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
                     // Unknown type
                     continue;
                 }
-                fields.emplace_back(Reflection::FieldDescription({ field->getName(), context.Name(), context.QualifiedName(), attribs, guid, typeHash }, fieldOffset, fieldSize, metaType));
+                fieldDescs.emplace_back(Reflection::FieldDescription({ field->getName(), context.Name(), context.QualifiedName(), attribs, guid, typeHash }, fieldOffset, fieldSize, metaType));
             }
         }
         
@@ -281,19 +285,21 @@ const Reflection::ClassDescription* ReflectionParser::HandleRecordDecl(Reflectio
         }
         
         std::stringstream qualifiedName;
-        qualifiedName << context.QualifiedName() << "::" << recordDecl->getName();
+        qualifiedName << context.QualifiedName() << "::" << std::string_view(recordDecl->getName());
         
         uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.str().c_str());
-        return context.RegisterClass(Reflection::ClassDescription({ recordDecl->getName(), context.Name(), context.QualifiedName(), recordAttribs, recordGuid, typeHash }, classSize, fields, baseClasses));
+		Reflection::BufferView bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
+        Reflection::BufferView fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
+        return context.RegisterClass(Reflection::ClassDescription({ recordDecl->getName(), context.Name(), context.QualifiedName(), recordAttribs, recordGuid, typeHash }, classSize, fields, bases));
     }
-    return nullptr;
+    return {};
 }
 
-const Reflection::ArrayDescription* ReflectionParser::HandleArrayType(ReflectionContext& context, const clang::ConstantArrayType* arrayType)
+ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const clang::ConstantArrayType* arrayType)
 {
     if (arrayType == nullptr)
     {
-        return nullptr;
+        return {};
     }
     
     Reflection::ArrayDescription arrayDesc;
@@ -305,40 +311,43 @@ const Reflection::ArrayDescription* ReflectionParser::HandleArrayType(Reflection
         const auto innerArrayType = elementType->getAsArrayTypeUnsafe();
         if (innerArrayType == nullptr || innerArrayType->isConstantArrayType() == false)
         {
-            return nullptr;
+            return {};
         }
         
-        const auto innerArrayDesc = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(innerArrayType));
-        if (innerArrayDesc == nullptr)
+        const auto innerArrayHandle = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(innerArrayType));
+        if (innerArrayHandle == InvalidMetaIndex)
         {
-            return nullptr;
+            return {};
         }
-        arrayDesc.mStride = innerArrayDesc->GetSize();
-        arrayDesc.mElementHash = innerArrayDesc->TypeHash();
+        const auto& innerArrayDesc = context.mArrays[innerArrayHandle];
+        arrayDesc.mStride = innerArrayDesc.GetSize();
+        arrayDesc.mElementHash = innerArrayHandle;
         arrayDesc.mElementType = Reflection::MetaType::Array;
     }
     else if (elementType->isRecordType())
     {
         const auto recordType = elementType->getAs<clang::RecordType>();
-        const auto classDesc = HandleRecordDecl(context, recordType->getAsCXXRecordDecl());
-        if (classDesc == nullptr)
+        const auto classHandle = HandleRecordDecl(context, recordType->getAsCXXRecordDecl());
+        if (classHandle == InvalidMetaIndex)
         {
-            return nullptr;
+            return {};
         }
-        arrayDesc.mStride = classDesc->GetSize();
-        arrayDesc.mElementHash = classDesc->TypeHash();
+        const auto& classDesc = context.mClasses[classHandle];
+        arrayDesc.mStride = classDesc.GetSize();
+        arrayDesc.mElementHash = classDesc.TypeHash();
         arrayDesc.mElementType = Reflection::MetaType::Class;
     }
     else if (elementType->isEnumeralType())
     {
         const clang::EnumType* enumType = elementType->getAs<clang::EnumType>();
-        const auto enumDesc = HandleEnumDecl(context, enumType->getDecl());
-        if (enumDesc == nullptr)
+        const auto enumHandle = HandleEnumDecl(context, enumType->getDecl());
+        if (enumHandle == InvalidMetaIndex)
         {
-            return nullptr;
+            return {};
         }
-        arrayDesc.mStride = enumDesc->GetSize();
-        arrayDesc.mElementHash = enumDesc->TypeHash();
+        const auto& enumDesc = context.mEnums[enumHandle];
+        arrayDesc.mStride = enumDesc.GetSize();
+        arrayDesc.mElementHash = enumDesc.TypeHash();
         arrayDesc.mElementType = Reflection::MetaType::Enum;
     }
     else if (elementType->isBuiltinType())

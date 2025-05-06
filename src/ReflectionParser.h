@@ -1,5 +1,6 @@
 #pragma once
 #include "ReflectionContext.h"
+#include "Serialization/BinaryWriter.h"
 
 #include <clang/AST/DeclBase.h>
 
@@ -15,9 +16,9 @@ public:
     
 private:
     void ParseDecls(ReflectionContext& context, const clang::DeclContext::decl_range& decls);
-    const Reflection::EnumDescription* HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl);
-    const Reflection::ClassDescription* HandleRecordDecl(ReflectionContext& context, const clang::CXXRecordDecl* recordDecl);
-    const Reflection::ArrayDescription* HandleArrayType(ReflectionContext& context, const clang::ConstantArrayType* arrayType);
+    EnumHandle HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl);
+    ClassHandle HandleRecordDecl(ReflectionContext& context, const clang::CXXRecordDecl* recordDecl);
+    ArrayHandle HandleArrayType(ReflectionContext& context, const clang::ConstantArrayType* arrayType);
     
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;
@@ -28,6 +29,7 @@ private:
 private:
 
     ReflectionContext mContext;
+    Reflection::BinaryWriter mObjectWriter;
 };
 
 } // namespace Gleam

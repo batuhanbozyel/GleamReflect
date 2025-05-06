@@ -282,11 +282,6 @@ public:
         return mStride;
     }
     
-    uint32_t TypeHash() const
-    {
-        return mTypeHash;
-    }
-    
     uint32_t ElementHash() const
     {
         return mElementHash;
@@ -301,7 +296,6 @@ private:
     
     size_t mSize = 0;
     size_t mStride = 0;
-    uint32_t mTypeHash = 0;
     uint32_t mElementHash = 0;
     MetaType mElementType = MetaType::Invalid;
     
