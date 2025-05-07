@@ -77,8 +77,8 @@ private:
     AttributeFactory() = default;
     
 	std::vector<IAttribute*> mAllocations;
-    std::unordered_map<uint32_t, CreateAttributeFn> mFactories;
     std::unordered_map<std::string, uint32_t> mNameToHash;
+    std::unordered_map<uint32_t, CreateAttributeFn> mFactories;
 };
 
 template<AttributeType Attrib>
@@ -93,6 +93,6 @@ struct AttributeRegistrar
 #define REGISTER_ATTRIBUTE(Namespace, Type) \
     namespace Namespace { \
 		static inline Gleam::Reflection::AttributeRegistrar<Type> g##Type##Registrar; \
-	} // namespace Namespace
+	}
 
 } // namespace Gleam::Reflection

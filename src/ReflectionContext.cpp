@@ -51,8 +51,19 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
     }
 }
 
-void ReflectionContext::GenerateClassDescs(std::stringstream& ss) const
+void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 {
+	for (const auto& [guid, handle] : mGuidToEnum)
+	{
+		const auto& enumDesc = mEnums[handle];
+		ss << "template<>\n";
+		ss << "inline const EnumDescription& GetEnum<" << mQualifiedName << "::" << enumDesc.ResolveName() << ">()\n";
+		ss << "{\n";
+		ss << "\tstatic const auto enums = gReflectionDatabase->GetEnums();\n";
+		ss << "\treturn enums[" << handle << "]; \n";
+		ss << "}\n\n";
+	}
+
     for (const auto& [guid, handle] : mGuidToClass)
     {
         const auto& classDesc = mClasses[handle];
@@ -63,11 +74,11 @@ void ReflectionContext::GenerateClassDescs(std::stringstream& ss) const
         ss << "\treturn classes[" << handle << "]; \n";
         ss << "}\n\n";
     }
-    
+
     for (const auto& context : mContexts)
     {
         ss << "\n";
-        context.GenerateClassDescs(ss);
+        context.GenerateMetaDescs(ss);
     }
 }
 

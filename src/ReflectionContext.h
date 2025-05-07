@@ -35,7 +35,7 @@ static_assert(sizeof(EnumHandle) == sizeof(uint32_t), "EnumHandle must be the sa
 
 struct ClassHandle
 {
-    uint32_t index = InvalidMetaIndex;
+	uint32_t index = InvalidMetaIndex;
 
 	operator uint32_t() const
 	{
@@ -70,7 +70,7 @@ public:
     explicit ReflectionContext(const std::string_view name, const std::string& qualifiedName);
     
 	void GenerateForwardDecls(std::stringstream& ss) const;
-    void GenerateClassDescs(std::stringstream& ss) const;
+    void GenerateMetaDescs(std::stringstream& ss) const;
 
     void EmplaceContext(const ReflectionContext& context);
     

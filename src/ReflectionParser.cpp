@@ -59,12 +59,20 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
     mContext.GenerateForwardDecls(generatedCode);
     
     generatedCode << "namespace Gleam::Reflection {\n\n";
+
+	generatedCode << "template<typename T>\n";
+	generatedCode << "const EnumDescription& GetEnum()\n";
+	generatedCode << "{\n";
+	generatedCode << "\tstatic_assert(false, \"Enum is not reflected\");\n";
+	generatedCode << "}\n\n";
+
     generatedCode << "template<typename T>\n";
     generatedCode << "const ClassDescription& GetClass()\n";
     generatedCode << "{\n";
     generatedCode << "\tstatic_assert(false, \"Class is not reflected\");\n";
-    generatedCode << "}\n";
-    mContext.GenerateClassDescs(generatedCode);
+    generatedCode << "}\n\n";
+
+    mContext.GenerateMetaDescs(generatedCode);
     generatedCode << "} // namespace Gleam::Reflection\n";
     
     generatedCode << "#endif // __GLEAM_REFLECTION__\n";
