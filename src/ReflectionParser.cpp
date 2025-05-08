@@ -123,8 +123,8 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
     
     if (enumAnnotation.find("GENUM") != std::string::npos)
     {
-        const auto& attributes = ParseAttributes(enumAnnotation);
-        const auto& guid = ExtractGuid(attributes);
+        auto attributes = ParseAttributes(enumAnnotation);
+		auto guid = ExtractGuid(attributes);
         assert(guid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum is missing GUID attribute");
         
         if (const auto enumHandle = context.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
@@ -152,8 +152,8 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
             
             if (itemAnnotation.find("GITEM") != std::string::npos)
             {
-                const auto& itemAttributes = ParseAttributes(itemAnnotation);
-                const auto& itemGuid = ExtractGuid(itemAttributes);
+                auto itemAttributes = ParseAttributes(itemAnnotation);
+                auto itemGuid = ExtractGuid(itemAttributes);
                 assert(itemGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum case is missing GUID attribute");
                 
                 Reflection::EnumCaseDescription enumCase({
@@ -185,8 +185,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
     
     if (recordAnnotation.find("GCLASS") != std::string::npos || recordAnnotation.find("GSTRUCT") != std::string::npos)
     {
-        const auto& recordAttribs = ParseAttributes(recordAnnotation);
-        const auto& recordGuid = ExtractGuid(recordAttribs);
+        auto recordAttribs = ParseAttributes(recordAnnotation);
+        auto recordGuid = ExtractGuid(recordAttribs);
         assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
         
         if (const auto classHandle = context.GetClassHandle(recordGuid); classHandle != InvalidMetaIndex)
@@ -221,8 +221,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             
             if (annotation.find("GFIELD") != std::string::npos)
             {
-                const auto& attribs = ParseAttributes(annotation);
-                const auto& guid = ExtractGuid(attribs);
+                auto attribs = ParseAttributes(annotation);
+                auto guid = ExtractGuid(attribs);
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
                 
                 uint32_t typeHash = 0;
@@ -284,8 +284,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             
             if (annotation.find("GFUNCTION"))
             {
-                const auto& attribs = ParseAttributes(annotation);
-                const auto& guid = ExtractGuid(attribs);
+                auto attribs = ParseAttributes(annotation);
+                auto guid = ExtractGuid(attribs);
                 assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
 
                 // TODO: function reflection support
@@ -368,13 +368,14 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
     return context.RegisterArray(arrayDesc);
 }
 
-std::vector<Reflection::IAttribute*> ReflectionParser::ParseAttributes(const std::string& annotation) const
+Reflection::BufferView ReflectionParser::ParseAttributes(const std::string& annotation)
 {
     std::regex attrRegex(R"(\b([A-Za-z0-9_]+)(?:\(([^)]*)\))?)");
     std::sregex_iterator it(annotation.begin(), annotation.end(), attrRegex);
     std::sregex_iterator end;
  
-    std::vector<Reflection::IAttribute*> attributes;
+    std::vector<uint32_t> attributeHashes;
+	std::vector<Reflection::BufferView> attributeViews;
     for (; it != end; ++it)
     {
         std::string attrName = (*it)[1].str();
@@ -390,23 +391,34 @@ std::vector<Reflection::IAttribute*> ReflectionParser::ParseAttributes(const std
 			continue; // skip macro attributes
         }
         
-        if (auto attr = Reflection::AttributeFactory::Instance().CreateAttribute(attrName, argsStr); attr != nullptr)
-        {
-			attributes.emplace_back(attr);
+        if (auto attr = Reflection::AttributeFactory::Instance().CreateAttribute(attrName, argsStr); attr.ptr != nullptr)
+		{
+			auto attrView = mObjectWriter.Write(attr.ptr, attr.size);
+			attributeHashes.emplace_back(attr.hash);
+			attributeViews.emplace_back(attrView);
+			delete attr.ptr;
         }
     }
+	auto attributes = mObjectWriter.Write(attributeHashes.data(), attributeHashes.size() * sizeof(uint32_t));
+	mObjectWriter.Write(attributeViews.data(), attributeViews.size() * sizeof(Reflection::BufferView));
     return attributes;
 }
 
-Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const std::vector<Reflection::IAttribute*>& attributes) const
+Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const Reflection::BufferView& attributes) const
 {
-    for (const auto attr : attributes)
-    {
-        if (attr->GetDescription().hash == Reflection::Utils::HashString("Guid"))
-        {
-            return *static_cast<const Reflection::Attribute::Guid*>(attr);
-        }
-    }
+	auto attribs = Reflection::Utils::OffsetPointer<uint32_t>(mObjectWriter.GetBuffer().data, attributes.offset);
+	auto numAttribs = attributes.size / sizeof(uint32_t);
+
+	for (uint32_t i = 0; i < numAttribs; ++i)
+	{
+		if (attribs[i] == Reflection::Utils::HashString("Guid"))
+		{
+			auto view = Reflection::Utils::OffsetPointer<Reflection::BufferView>(mObjectWriter.GetBuffer().data, attributes.offset + attributes.size + i * sizeof(Reflection::BufferView));
+			auto guid = Reflection::Utils::OffsetPointer<Reflection::Attribute::Guid>(mObjectWriter.GetBuffer().data, view->offset);
+			assert(view->size == sizeof(Reflection::Attribute::Guid) && "Attribute view does not match with GUID");
+			return *guid;
+		}
+	}
     return Reflection::Attribute::Guid::InvalidGuid();
 }
 

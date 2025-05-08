@@ -6,10 +6,17 @@
 
 namespace Gleam::Reflection {
 
+struct AttributeHandle
+{
+	IAttribute* ptr = nullptr;
+	size_t size = 0;
+	uint32_t hash = 0;
+};
+
 class AttributeFactory
 {
 public:
-    using CreateAttributeFn = std::function<IAttribute*(const std::string& args)>;
+    using CreateAttributeFn = std::function<AttributeHandle(const std::string& args)>;
     
     static AttributeFactory& Instance()
     {
@@ -17,57 +24,42 @@ public:
         return instance;
     }
 
-    ~AttributeFactory()
-    {
-        for (auto allocation : mAllocations)
-        {
-            delete allocation;
-        }
-    }
-
     template<AttributeType Attrib>
     void RegisterAttribute()
     {
-        uint32_t hash = Attrib::description.hash;
-        const char* name = Attrib::description.tag;
-        
-        auto createFn = [this](const std::string& args) -> IAttribute*
+        auto createFn = [this](const std::string& args) -> AttributeHandle
         {
             if constexpr (std::is_constructible_v<Attrib, const std::string&>)
             {
-                auto attrib = new Attrib(args);
-                mAllocations.push_back(attrib);
-                return attrib;
+				return AttributeHandle{ new Attrib(args), sizeof(Attrib), Attrib::description.hash };
             }
             else if constexpr (std::is_default_constructible_v<Attrib>)
             {
-				auto attrib = new Attrib();
-				mAllocations.push_back(attrib);
-				return attrib;
+				return AttributeHandle{ new Attrib(), sizeof(Attrib), Attrib::description.hash };
             }
             else
             {
-                return nullptr;
+				return {};
             }
         };
         
-        mFactories[hash] = createFn;
-        mNameToHash[name] = hash;
+        mFactories[Attrib::description.hash] = createFn;
+        mNameToHash[Attrib::description.tag] = Attrib::description.hash;
     }
     
-    IAttribute* CreateAttribute(const std::string& name, const std::string& args) const
+	AttributeHandle CreateAttribute(const std::string& name, const std::string& args) const
     {
         auto nameIt = mNameToHash.find(name);
         if (nameIt == mNameToHash.end())
         {
-            return nullptr; // Unknown attribute type
+			return {}; // Unknown attribute type
         }
         
         uint32_t hash = nameIt->second;
         auto factoryIt = mFactories.find(hash);
         if (factoryIt == mFactories.end())
         {
-            return nullptr; // No factory registered
+			return {}; // No factory registered
         }
         
         return factoryIt->second(args);
@@ -76,7 +68,6 @@ public:
 private:
     AttributeFactory() = default;
     
-	std::vector<IAttribute*> mAllocations;
     std::unordered_map<std::string, uint32_t> mNameToHash;
     std::unordered_map<uint32_t, CreateAttributeFn> mFactories;
 };

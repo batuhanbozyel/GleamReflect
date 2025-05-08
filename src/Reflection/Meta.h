@@ -93,12 +93,12 @@ public:
 	template<AttributeType Attrib>
 	bool HasAttribute() const
 	{
-		const auto attribs = gReflectionDatabase->GetObject<AttributeDescription>(mAttributes);
-		const auto numAttribs = mAttributes.size / sizeof(AttributeDescription);
+		const auto attribs = gReflectionDatabase->GetObject<uint32_t>(mAttributes);
+		const auto numAttribs = mAttributes.size / sizeof(uint32_t);
 
         for (uint32_t i = 0; i < numAttribs; ++i)
         {
-			if (attribs[i].hash == Attrib::description.hash)
+			if (attribs[i] == Attrib::description.hash)
 			{
 				return true;
 			}
@@ -109,12 +109,12 @@ public:
 	template<AttributeType Attrib>
 	const Attrib* GetAttribute() const
 	{
-		const auto attribs = gReflectionDatabase->GetObject<AttributeDescription>(mAttributes);
-		const auto numAttribs = mAttributes.size / sizeof(AttributeDescription);
+		const auto attribs = gReflectionDatabase->GetObject<uint32_t>(mAttributes);
+		const auto numAttribs = mAttributes.size / sizeof(uint32_t);
 
 		for (uint32_t i = 0; i < numAttribs; ++i)
 		{
-			if (attribs[i].hash == Attrib::description.hash)
+			if (attribs[i] == Attrib::description.hash)
 			{
 				const auto view = gReflectionDatabase->GetObject<BufferView>(
                 {

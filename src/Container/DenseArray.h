@@ -137,7 +137,7 @@ public:
 
     const T& at(size_t pos) const
     {
-        if (pos >= size_)
+        if (pos >= mSize)
         {
             throw std::out_of_range("Index out of range");
         }

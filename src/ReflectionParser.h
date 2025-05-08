@@ -23,8 +23,8 @@ private:
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;
     
-    std::vector<Reflection::IAttribute*> ParseAttributes(const std::string& annotation) const;
-    Reflection::Attribute::Guid ExtractGuid(const std::vector<Reflection::IAttribute*>& attributes) const;
+    Reflection::BufferView ParseAttributes(const std::string& annotation);
+    Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
 
 private:
 
