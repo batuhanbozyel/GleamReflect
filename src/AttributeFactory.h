@@ -27,7 +27,8 @@ public:
     template<AttributeType Attrib>
     void RegisterAttribute()
     {
-        auto createFn = [this](const std::string& args) -> AttributeHandle
+        mNameToHash[Attrib::description.tag] = Attrib::description.hash;
+        mFactories[Attrib::description.hash] = [this](const std::string& args) -> AttributeHandle
         {
             if constexpr (std::is_constructible_v<Attrib, const std::string&>)
             {
@@ -42,9 +43,6 @@ public:
 				return {};
             }
         };
-        
-        mFactories[Attrib::description.hash] = createFn;
-        mNameToHash[Attrib::description.tag] = Attrib::description.hash;
     }
     
 	AttributeHandle CreateAttribute(const std::string& name, const std::string& args) const

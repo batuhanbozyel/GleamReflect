@@ -1,6 +1,7 @@
 #pragma once
 #include "Serialization/BinaryBuffer.h"
 #include "Container/DenseArray.h"
+#include "Attribute.h"
 
 #include <filesystem>
 #include <unordered_map>
@@ -74,6 +75,6 @@ private:
     BinaryBuffer mBuffer;
     
 };
-extern Database* gReflectionDatabase = nullptr;
+extern Database* gReflectionDatabase;
 
 } // namespace Gleam::Reflection

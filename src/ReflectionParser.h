@@ -4,6 +4,16 @@
 
 #include <clang/AST/DeclBase.h>
 
+#include <filesystem>
+
+namespace clang {
+class ASTContext;
+class CXXRecordDecl;
+class EnumDecl;
+class ConstantArrayType;
+class BuiltinType;
+} // namespace clang
+
 namespace Gleam {
 
 class ReflectionParser

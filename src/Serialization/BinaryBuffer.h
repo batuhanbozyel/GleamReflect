@@ -1,6 +1,4 @@
 #pragma once
-#include "Reflection/Utils.h"
-
 #include <cstring>
 
 namespace Gleam::Reflection {

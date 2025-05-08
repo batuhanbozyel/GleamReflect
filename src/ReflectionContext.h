@@ -1,22 +1,13 @@
 #pragma once
 #include "Reflection/Meta.h"
 
-#include <string>
 #include <vector>
+#include <string>
+#include <sstream>
 #include <string_view>
-#include <filesystem>
 #include <unordered_map>
 
 #define InvalidMetaIndex ~0u
-
-namespace clang {
-class ASTContext;
-class Decl;
-class DeclContext;
-class EnumDecl;
-class CXXRecordDecl;
-class FieldDecl;
-}
 
 namespace Gleam {
 
@@ -94,9 +85,9 @@ private:
     std::string mQualifiedName;
     std::vector<ReflectionContext> mContexts;
     
-    static inline EnumList mEnums;
-    static inline ClassList mClasses;
-    static inline ArrayList mArrays;
+	static inline EnumList mEnums = {};
+	static inline ClassList mClasses = {};
+	static inline ArrayList mArrays = {};
 };
 
 } // namespace Gleam

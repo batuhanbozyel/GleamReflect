@@ -1,7 +1,4 @@
 #include "ReflectionContext.h"
-#include "Serialization/BinaryWriter.h"
-
-#include <clang/Tooling/Tooling.h>
 
 using namespace Gleam;
 

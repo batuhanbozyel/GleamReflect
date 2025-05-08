@@ -1,14 +1,11 @@
 #include "ReflectionParser.h"
-#include "Attributes.h"
-#include "Serialization/BinaryWriter.h"
+#include "AttributeFactory.h"
 
 #include <clang/AST/AST.h>
 #include <clang/Tooling/Tooling.h>
-#include <clang/Frontend/CompilerInstance.h>
 
 #include <fstream>
 #include <cassert>
-#include <regex>
 
 using namespace Gleam;
 
@@ -56,6 +53,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
     std::stringstream generatedCode;
     generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
 	generatedCode << "#include <Reflection/Meta.h>\n";
+	generatedCode << "#include <Reflection/Database.h>\n";
     mContext.GenerateForwardDecls(generatedCode);
     
     generatedCode << "namespace Gleam::Reflection {\n\n";
@@ -92,8 +90,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 		std::ofstream file(filename, std::ios::out | std::ios::trunc | std::ios::binary);
         
         Reflection::BinaryWriter writer;
-        
-        Reflection::DatabaseHeader header;
+		Reflection::DatabaseHeader header{};
         header.version = 0;
         header.classCount = static_cast<uint32_t>(mContext.mClasses.size());
         header.enumCount = static_cast<uint32_t>(mContext.mEnums.size());
@@ -502,3 +499,9 @@ uint32_t ReflectionParser::BuiltinTypeHash(const clang::BuiltinType* type) const
             return static_cast<uint32_t>(Reflection::PrimitiveType::Invalid);
     }
 }
+
+REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Guid);
+REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Version);
+REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, EntityComponent);
+REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Serializable);
+REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, PrettyName);

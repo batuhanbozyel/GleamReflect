@@ -7,9 +7,10 @@
 
 using namespace Gleam::Reflection;
 
+Database* ::Gleam::Reflection::gReflectionDatabase;
 bool Database::Initialize(const std::filesystem::path& path)
 {
-    gReflectionDatabase = this;
+	gReflectionDatabase = this;
     
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (not file.is_open())
