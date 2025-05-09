@@ -39,6 +39,7 @@ private:
 private:
 
     ReflectionContext mContext;
+	Reflection::BinaryWriter mStringWriter;
     Reflection::BinaryWriter mObjectWriter;
 };
 

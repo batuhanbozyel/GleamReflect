@@ -32,7 +32,13 @@ bool Database::Initialize(const std::filesystem::path& path)
         mBuffer.Free();
         return false;
     }
-    
+
+	if (header->version != GLEAM_REFLECTION_VERSION)
+	{
+		std::cerr << "Unsupported reflection data file version: " << header->version << std::endl;
+		mBuffer.Free();
+		return false;
+	}
     BuildLookupTables(header);
     return true;
 }

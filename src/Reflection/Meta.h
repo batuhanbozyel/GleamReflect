@@ -49,15 +49,13 @@ class MetaDescription
 {
 public:
     
-    MetaDescription(const std::string_view name,
-                    const std::string_view nspace,
-                    const std::string_view qualifiedNSpace,
+    MetaDescription(const BufferView& name,
+                    const BufferView& qualifiedName,
                     const BufferView& attributes,
                     const Attribute::Guid& guid,
                     uint32_t typeHash)
         : mName(name)
-        , mNamespace(nspace)
-        , mQualifiedNamespace(qualifiedNSpace)
+        , mQualifiedName(qualifiedName)
         , mGuid(guid)
         , mTypeHash(typeHash)
 		, mAttributes(attributes)
@@ -75,19 +73,18 @@ public:
         return mGuid;
     }
     
-    const std::string_view ResolveName() const
+    const auto ResolveName() const
     {
-        return mName;
+		const auto str = gReflectionDatabase->GetString(mName);
+		assert(str != nullptr && "Name not found in the database");
+		return std::string_view{ str, mName.size };
     }
     
-    const std::string_view ResolveNamespace() const
+    const auto ResolveQualifiedName() const
     {
-        return mNamespace;
-    }
-    
-    const std::string_view ResolveQualifiedNamespace() const
-    {
-        return mQualifiedNamespace;
+		const auto str = gReflectionDatabase->GetString(mQualifiedName);
+		assert(str != nullptr && "Qualified name not found in the database");
+		return std::string_view{ str, mQualifiedName.size };
     }
     
 	template<AttributeType Attrib>
@@ -135,9 +132,8 @@ private:
     
     uint32_t mTypeHash = 0;
     BufferView mAttributes = {};
-    const std::string_view mName = "";
-    const std::string_view mNamespace = "";
-    const std::string_view mQualifiedNamespace = "";
+    BufferView mName = {};
+	BufferView mQualifiedName = {};
     Attribute::Guid mGuid = Attribute::Guid::InvalidGuid();
 };
 

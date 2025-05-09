@@ -1,4 +1,5 @@
 #pragma once
+#define GLEAM_REFLECTION_VERSION 1
 
 #ifdef __GLEAM_REFLECTION__
 #define GCLASS(Name, GuidStr, ...) class __attribute__((annotate("GCLASS, Guid(\"" GuidStr "\"), " #__VA_ARGS__ ")"))) Name

@@ -23,6 +23,7 @@ struct DatabaseHeader
     uint32_t enumCount;
     size_t classTableOffset;
     size_t enumTableOffset;
+	size_t stringTableOffset;
 };
 
 class Database
@@ -61,6 +62,17 @@ public:
         }
         return Utils::OffsetPointer<T>(mBuffer.data, offset);
     }
+
+	const char* GetString(const BufferView& view) const
+	{
+		const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
+		auto offset = view.offset + header->stringTableOffset;
+		if ((offset + view.size) > mBuffer.size)
+		{
+			return nullptr;
+		}
+		return Utils::OffsetPointer<char>(mBuffer.data, offset);
+	}
     
 private:
     
