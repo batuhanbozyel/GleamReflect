@@ -66,6 +66,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
         header.version = GLEAM_REFLECTION_VERSION;
         header.classCount = static_cast<uint32_t>(mContext.mClasses.size());
         header.enumCount = static_cast<uint32_t>(mContext.mEnums.size());
+		header.arrayCount = static_cast<uint32_t>(mContext.mArrays.size());
 		memcpy(header.magic, "GLEAMREF", sizeof(header.magic));
         writer.Write(header);
 
@@ -78,6 +79,9 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
         
         serializedHeader->enumTableOffset = writer.GetCursor();
         writer.Write(mContext.mEnums.data(), mContext.mEnums.size() * sizeof(Reflection::EnumDescription));
+
+		serializedHeader->arrayTableOffset = writer.GetCursor();
+		writer.Write(mContext.mArrays.data(), mContext.mArrays.size() * sizeof(Reflection::ArrayDescription));
 
 		const auto& stringBuffer = mStringWriter.GetBuffer();
 		serializedHeader->stringTableOffset = writer.GetCursor();
@@ -355,15 +359,10 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
     arrayDesc.mSize = arrayType->getSizeBitWidth() / 8ul; // Convert to bytes
     
     const clang::QualType elementType = arrayType->getElementType();
-    if (elementType->isArrayType())
+    if (elementType->isConstantArrayType())
     {
-        const auto innerArrayType = elementType->getAsArrayTypeUnsafe();
-        if (innerArrayType == nullptr || innerArrayType->isConstantArrayType() == false)
-        {
-            return {};
-        }
-        
-        const auto innerArrayHandle = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(innerArrayType));
+        const auto innerArrayType = static_cast<const clang::ConstantArrayType*>(elementType->getAsArrayTypeUnsafe());
+        const auto innerArrayHandle = HandleArrayType(context, innerArrayType);
         if (innerArrayHandle == InvalidMetaIndex)
         {
             return {};
@@ -405,7 +404,11 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         arrayDesc.mStride = BuiltinTypeSize(builtinType);
         arrayDesc.mElementHash = BuiltinTypeHash(builtinType);
         arrayDesc.mElementType = Reflection::MetaType::Primitive;
-    }
+	}
+	else
+	{
+		return {};
+	}
     return context.RegisterArray(arrayDesc);
 }
 

@@ -118,10 +118,10 @@ public:
 					.offset = mAttributes.offset + mAttributes.size + i * sizeof(BufferView),
 					.size = sizeof(BufferView)
 			    });
-                assert(view != nullptr && "Attribute view is not found in the database");
+                assert(view != nullptr && "Attribute view not found in the database");
 
                 const auto attrib = gReflectionDatabase->GetObject<Attrib>(*view);
-				assert(attrib != nullptr && "Attribute is not found in the database");
+				assert(attrib != nullptr && "Attribute not found in the database");
                 return attrib;
 			}
 		}

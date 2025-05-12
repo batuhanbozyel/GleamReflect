@@ -21,8 +21,10 @@ struct DatabaseHeader
     uint32_t version;
     uint32_t classCount;
     uint32_t enumCount;
+	uint32_t arrayCount;
     size_t classTableOffset;
     size_t enumTableOffset;
+	size_t arrayTableOffset;
 	size_t stringTableOffset;
 };
 
