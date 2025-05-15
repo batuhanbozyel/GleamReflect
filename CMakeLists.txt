@@ -55,8 +55,10 @@ project(GleamReflect)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIGURATION>)
 
     # GleamReflect project
-    set(INCLUDE_DIRS src ${LLVM_INCLUDE_DIRS})
+    set(INCLUDE_DIRS include ${LLVM_INCLUDE_DIRS})
     file(GLOB_RECURSE SOURCE_FILES 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
     )
