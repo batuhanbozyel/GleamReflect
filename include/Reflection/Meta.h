@@ -1,6 +1,6 @@
 #pragma once
 #include "Attribute.h"
-#include "Database.h"
+#include "IDatabase.h"
 #include "Container/SparseArray.h"
 
 #include <string_view>
@@ -75,14 +75,14 @@ public:
     
     const auto ResolveName() const
     {
-		const auto str = gReflectionDatabase->GetString(mName);
+		const auto str = IDatabase::GetInstance()->GetString(mName);
 		assert(str != nullptr && "Name not found in the database");
 		return std::string_view{ str, mName.size };
     }
     
     const auto ResolveQualifiedName() const
     {
-		const auto str = gReflectionDatabase->GetString(mQualifiedName);
+		const auto str = IDatabase::GetInstance()->GetString(mQualifiedName);
 		assert(str != nullptr && "Qualified name not found in the database");
 		return std::string_view{ str, mQualifiedName.size };
     }
@@ -90,7 +90,7 @@ public:
 	template<AttributeType Attrib>
 	bool HasAttribute() const
 	{
-		const auto attribs = gReflectionDatabase->GetObject<uint32_t>(mAttributes);
+		const auto attribs = IDatabase::GetInstance()->GetObject<uint32_t>(mAttributes);
 		const auto numAttribs = mAttributes.size / sizeof(uint32_t);
 
         for (uint32_t i = 0; i < numAttribs; ++i)
@@ -106,21 +106,21 @@ public:
 	template<AttributeType Attrib>
 	const Attrib* GetAttribute() const
 	{
-		const auto attribs = gReflectionDatabase->GetObject<uint32_t>(mAttributes);
+		const auto attribs = IDatabase::GetInstance()->GetObject<uint32_t>(mAttributes);
 		const auto numAttribs = mAttributes.size / sizeof(uint32_t);
 
 		for (uint32_t i = 0; i < numAttribs; ++i)
 		{
 			if (attribs[i] == Attrib::description.hash)
 			{
-				const auto view = gReflectionDatabase->GetObject<BufferView>(
+				const auto view = IDatabase::GetInstance()->GetObject<BufferView>(
                 {
 					.offset = mAttributes.offset + mAttributes.size + i * sizeof(BufferView),
 					.size = sizeof(BufferView)
 			    });
                 assert(view != nullptr && "Attribute view not found in the database");
 
-                const auto attrib = gReflectionDatabase->GetObject<Attrib>(*view);
+                const auto attrib = IDatabase::GetInstance()->GetObject<Attrib>(*view);
 				assert(attrib != nullptr && "Attribute not found in the database");
                 return attrib;
 			}
@@ -212,7 +212,7 @@ public:
     
     auto Cases() const
     {
-        const auto ptr = gReflectionDatabase->GetObject<EnumCaseDescription>(mCases);
+        const auto ptr = IDatabase::GetInstance()->GetObject<EnumCaseDescription>(mCases);
         return DenseArrayView{ ptr, mCases.size / sizeof(EnumCaseDescription) };
     }
     
@@ -238,15 +238,15 @@ public:
     
     auto ResolveFields() const
     {
-		const auto ptr = gReflectionDatabase->GetObject<FieldDescription>(mFields);
+		const auto ptr = IDatabase::GetInstance()->GetObject<FieldDescription>(mFields);
 		return DenseArrayView{ ptr, mFields.size / sizeof(FieldDescription) };
     }
     
     auto ResolveBaseClasses() const
     {
-		const auto ptr = gReflectionDatabase->GetObject<uint32_t>(mBaseClasses);
+		const auto ptr = IDatabase::GetInstance()->GetObject<uint32_t>(mBaseClasses);
 		auto indices = DenseArrayView{ ptr, mBaseClasses.size / sizeof(BufferView) };
-        auto classes = gReflectionDatabase->GetClasses();
+        auto classes = IDatabase::GetInstance()->GetClasses();
         return SparseArrayView{ classes.data(), indices };
     }
     

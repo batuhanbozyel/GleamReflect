@@ -1,5 +1,6 @@
 #include "ReflectionParser.h"
 #include "AttributeFactory.h"
+#include "Reflection/Database.h"
 
 #include <clang/AST/AST.h>
 #include <clang/Tooling/Tooling.h>
@@ -99,7 +100,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 	std::stringstream generatedCode;
 	generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
 	generatedCode << "#include <Reflection/Meta.h>\n";
-	generatedCode << "#include <Reflection/Database.h>\n";
+	generatedCode << "#include <Reflection/IDatabase.h>\n";
 	mContext.GenerateForwardDecls(generatedCode);
 
 	generatedCode << "namespace Gleam::Reflection {\n\n";

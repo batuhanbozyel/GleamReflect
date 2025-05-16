@@ -56,7 +56,7 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 		ss << "template<>\n";
 		ss << "inline const EnumDescription& GetEnum<" << mQualifiedName << "::" << enumDesc.ResolveName() << ">()\n";
 		ss << "{\n";
-		ss << "\tstatic const auto enums = gReflectionDatabase->GetEnums();\n";
+		ss << "\tstatic const auto enums = IDatabase::GetInstance()->GetEnums();\n";
 		ss << "\treturn enums[" << handle << "]; \n";
 		ss << "}\n\n";
 	}
@@ -67,7 +67,7 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
         ss << "template<>\n";
         ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classDesc.ResolveName() << ">()\n";
         ss << "{\n";
-        ss << "\tstatic const auto classes = gReflectionDatabase->GetClasses();\n";
+        ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
         ss << "\treturn classes[" << handle << "]; \n";
         ss << "}\n\n";
     }
