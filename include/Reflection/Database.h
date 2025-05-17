@@ -52,6 +52,9 @@ public:
 
 		mEnumHashToOffsets.clear();
 		mEnumGuidToOffsets.clear();
+
+		mArrayHashToOffsets.clear();
+		sInstance = nullptr;
 	}
 
 private:
@@ -74,6 +77,14 @@ private:
 			
 			mEnumGuidToOffsets[enumDesc->Guid()] = offset;
 			mEnumHashToOffsets[enumDesc->TypeHash()] = offset;
+		}
+
+		for (uint32_t i = 0; i < header->arrayCount; ++i)
+		{
+			auto offset = header->arrayTableOffset + i * sizeof(ArrayDescription);
+			const auto arrayDesc = Utils::OffsetPointer<ArrayDescription>(mBuffer.data, offset);
+
+			mArrayHashToOffsets[arrayDesc->ElementHash()] = offset;
 		}
 	}
     

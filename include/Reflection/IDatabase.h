@@ -12,6 +12,7 @@
 
 namespace Gleam::Reflection {
 
+class ArrayDescription;
 class ClassDescription;
 class EnumDescription;
 
@@ -89,6 +90,16 @@ public:
 		return nullptr;
 	}
 
+	const ArrayDescription* GetArray(uint32_t hash) const
+	{
+		auto it = mArrayHashToOffsets.find(hash);
+		if (it != mArrayHashToOffsets.end())
+		{
+			return Utils::OffsetPointer<ArrayDescription>(mBuffer.data, it->second);
+		}
+		return nullptr;
+	}
+
     DenseArrayView<ClassDescription> GetClasses() const
     {
 		const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
@@ -99,6 +110,12 @@ public:
 	{
 		const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
 		return DenseArrayView{ Utils::OffsetPointer<EnumDescription>(mBuffer.data, header->enumTableOffset), header->enumCount };
+	}
+
+	DenseArrayView<ArrayDescription> GetArrays() const
+	{
+		const auto header = static_cast<const DatabaseHeader*>(mBuffer.data);
+		return DenseArrayView{ Utils::OffsetPointer<ArrayDescription>(mBuffer.data, header->arrayTableOffset), header->arrayCount };
 	}
 
 	template<typename T>
@@ -124,6 +141,8 @@ public:
 	}
     
 protected:
+
+	std::unordered_map<uint32_t, size_t> mArrayHashToOffsets;
 
     std::unordered_map<uint32_t, size_t> mClassHashToOffsets;
     std::unordered_map<uint32_t, size_t> mEnumHashToOffsets;
