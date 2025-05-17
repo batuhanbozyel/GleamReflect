@@ -6,38 +6,38 @@
 namespace Gleam::Reflection {
 
 template<typename T, std::enable_if_t<Traits::IsPrimitive<T>::value, bool> = true>
-static constexpr PrimitiveType GetPrimitiveType()
+static constexpr PrimitiveDescription GetPrimitive()
 {
 	if constexpr (Traits::IsSame<bool, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Bool);
+        return PrimitiveDescription(Reflection::PrimitiveType::Bool);
 	else if constexpr (Traits::IsSame<wchar_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::WChar);
+        return PrimitiveDescription(Reflection::PrimitiveType::WChar);
 	else if constexpr (Traits::IsSame<char, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Char);
+        return PrimitiveDescription(Reflection::PrimitiveType::Char);
 	else if constexpr (Traits::IsSame<int8_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Int8);
+        return PrimitiveDescription(Reflection::PrimitiveType::Int8);
 	else if constexpr (Traits::IsSame<int16_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Int16);
+        return PrimitiveDescription(Reflection::PrimitiveType::Int16);
 	else if constexpr (Traits::IsSame<int32_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Int32);
+        return PrimitiveDescription(Reflection::PrimitiveType::Int32);
 	else if constexpr (Traits::IsSame<int64_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Int64);
+        return PrimitiveDescription(Reflection::PrimitiveType::Int64);
 	else if constexpr (Traits::IsSame<uint8_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::UInt8);
+        return PrimitiveDescription(Reflection::PrimitiveType::UInt8);
 	else if constexpr (Traits::IsSame<uint16_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::UInt16);
+        return PrimitiveDescription(Reflection::PrimitiveType::UInt16);
 	else if constexpr (Traits::IsSame<uint32_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::UInt32);
+        return PrimitiveDescription(Reflection::PrimitiveType::UInt32);
 	else if constexpr (Traits::IsSame<uint64_t, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::UInt64);
+        return PrimitiveDescription(Reflection::PrimitiveType::UInt64);
 	else if constexpr (Traits::IsSame<float, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Float);
+        return PrimitiveDescription(Reflection::PrimitiveType::Float);
 	else if constexpr (Traits::IsSame<double, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Double);
+        return PrimitiveDescription(Reflection::PrimitiveType::Double);
 	else if constexpr (Traits::IsSame<void, T>::value)
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Void);
+        return PrimitiveDescription(Reflection::PrimitiveType::Void);
 	else
-        return static_cast<uint32_t>(Reflection::PrimitiveType::Invalid);
+        return PrimitiveDescription(Reflection::PrimitiveType::Invalid);
 }
 
 static constexpr PrimitiveType GetPrimitiveType(uint32_t hash)

@@ -45,6 +45,97 @@ enum class PrimitiveType
     COUNT
 };
 
+class PrimitiveDescription
+{
+public:
+	
+	constexpr PrimitiveDescription(PrimitiveType type)
+		: mType(type)
+	{
+		
+	}
+	
+	constexpr auto Type() const
+	{
+		return mType;
+	}
+
+	constexpr auto TypeHash() const
+	{
+		return static_cast<uint32_t>(mType);
+	}
+
+	constexpr auto GetSize() const
+	{
+		if constexpr (mType == PrimitiveType::Bool)
+        	return sizeof(bool);
+		else if constexpr (mType == PrimitiveType::WChar)
+			return sizeof(wchar_t);
+		else if constexpr (mType == PrimitiveType::Char)
+			return sizeof(char);
+		else if constexpr (mType == PrimitiveType::Int8)
+			return sizeof(int8_t);
+		else if constexpr (mType == PrimitiveType::Int16)
+			return sizeof(int16_t);
+		else if constexpr (mType == PrimitiveType::Int32)
+			return sizeof(int32_t);
+		else if constexpr (mType == PrimitiveType::Int64)
+			return sizeof(int64_t);
+		else if constexpr (mType == PrimitiveType::UInt8)
+			return sizeof(uint8_t);
+		else if constexpr (mType == PrimitiveType::UInt16)
+			return sizeof(uint16_t);
+		else if constexpr (mType == PrimitiveType::UInt32)
+			return sizeof(uint32_t);
+		else if constexpr (mType == PrimitiveType::UInt64)
+			return sizeof(uint64_t);
+		else if constexpr (mType == PrimitiveType::Float)
+			return sizeof(float);
+		else if constexpr (mType == PrimitiveType::Double)
+			return sizeof(double);
+		else
+			return 0;
+	}
+	
+	constexpr const auto ResolveName() const
+	{
+		if constexpr (mType == PrimitiveType::Bool)
+        	return "bool";
+		else if constexpr (mType == PrimitiveType::WChar)
+			return "wchar_t";
+		else if constexpr (mType == PrimitiveType::Char)
+			return "char";
+		else if constexpr (mType == PrimitiveType::Int8)
+			return "int8_t";
+		else if constexpr (mType == PrimitiveType::Int16)
+			return "int16_t";
+		else if constexpr (mType == PrimitiveType::Int32)
+			return "int32_t";
+		else if constexpr (mType == PrimitiveType::Int64)
+			return "int64_t";
+		else if constexpr (mType == PrimitiveType::UInt8)
+			return "uint8_t";
+		else if constexpr (mType == PrimitiveType::UInt16)
+			return "uint16_t";
+		else if constexpr (mType == PrimitiveType::UInt32)
+			return "uint32_t";
+		else if constexpr (mType == PrimitiveType::UInt64)
+			return "uint64_t";
+		else if constexpr (mType == PrimitiveType::Float)
+			return "float";
+		else if constexpr (mType == PrimitiveType::Double)
+			return "double";
+		else if constexpr (mType == PrimitiveType::Void)
+			return "void";
+		else
+			return "";
+	}
+
+private:
+
+	PrimitiveType mType = PrimitiveType::Invalid;
+};
+
 class MetaDescription
 {
 public:
