@@ -9,35 +9,35 @@ template<typename T, std::enable_if_t<Traits::IsPrimitive<T>::value, bool> = tru
 static constexpr PrimitiveDescription GetPrimitive()
 {
 	if constexpr (Traits::IsSame<bool, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Bool);
+        return PrimitiveDescription(PrimitiveType::Bool);
 	else if constexpr (Traits::IsSame<wchar_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::WChar);
+        return PrimitiveDescription(PrimitiveType::WChar);
 	else if constexpr (Traits::IsSame<char, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Char);
+        return PrimitiveDescription(PrimitiveType::Char);
 	else if constexpr (Traits::IsSame<int8_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Int8);
+        return PrimitiveDescription(PrimitiveType::Int8);
 	else if constexpr (Traits::IsSame<int16_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Int16);
+        return PrimitiveDescription(PrimitiveType::Int16);
 	else if constexpr (Traits::IsSame<int32_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Int32);
+        return PrimitiveDescription(PrimitiveType::Int32);
 	else if constexpr (Traits::IsSame<int64_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Int64);
+        return PrimitiveDescription(PrimitiveType::Int64);
 	else if constexpr (Traits::IsSame<uint8_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::UInt8);
+        return PrimitiveDescription(PrimitiveType::UInt8);
 	else if constexpr (Traits::IsSame<uint16_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::UInt16);
+        return PrimitiveDescription(PrimitiveType::UInt16);
 	else if constexpr (Traits::IsSame<uint32_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::UInt32);
+        return PrimitiveDescription(PrimitiveType::UInt32);
 	else if constexpr (Traits::IsSame<uint64_t, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::UInt64);
+        return PrimitiveDescription(PrimitiveType::UInt64);
 	else if constexpr (Traits::IsSame<float, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Float);
+        return PrimitiveDescription(PrimitiveType::Float);
 	else if constexpr (Traits::IsSame<double, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Double);
+        return PrimitiveDescription(PrimitiveType::Double);
 	else if constexpr (Traits::IsSame<void, T>::value)
-        return PrimitiveDescription(Reflection::PrimitiveType::Void);
+        return PrimitiveDescription(PrimitiveType::Void);
 	else
-        return PrimitiveDescription(Reflection::PrimitiveType::Invalid);
+        return PrimitiveDescription(PrimitiveType::Invalid);
 }
 
 static constexpr PrimitiveType GetPrimitiveType(uint32_t hash)

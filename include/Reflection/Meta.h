@@ -67,68 +67,45 @@ public:
 
 	constexpr auto GetSize() const
 	{
-		if constexpr (mType == PrimitiveType::Bool)
-        	return sizeof(bool);
-		else if constexpr (mType == PrimitiveType::WChar)
-			return sizeof(wchar_t);
-		else if constexpr (mType == PrimitiveType::Char)
-			return sizeof(char);
-		else if constexpr (mType == PrimitiveType::Int8)
-			return sizeof(int8_t);
-		else if constexpr (mType == PrimitiveType::Int16)
-			return sizeof(int16_t);
-		else if constexpr (mType == PrimitiveType::Int32)
-			return sizeof(int32_t);
-		else if constexpr (mType == PrimitiveType::Int64)
-			return sizeof(int64_t);
-		else if constexpr (mType == PrimitiveType::UInt8)
-			return sizeof(uint8_t);
-		else if constexpr (mType == PrimitiveType::UInt16)
-			return sizeof(uint16_t);
-		else if constexpr (mType == PrimitiveType::UInt32)
-			return sizeof(uint32_t);
-		else if constexpr (mType == PrimitiveType::UInt64)
-			return sizeof(uint64_t);
-		else if constexpr (mType == PrimitiveType::Float)
-			return sizeof(float);
-		else if constexpr (mType == PrimitiveType::Double)
-			return sizeof(double);
-		else
-			return 0;
+		switch (mType)
+		{
+			case PrimitiveType::Bool:   return sizeof(bool);
+			case PrimitiveType::WChar:  return sizeof(wchar_t);
+			case PrimitiveType::Char:   return sizeof(char);
+			case PrimitiveType::Int8:   return sizeof(int8_t);
+			case PrimitiveType::Int16:  return sizeof(int16_t);
+			case PrimitiveType::Int32:  return sizeof(int32_t);
+			case PrimitiveType::Int64:  return sizeof(int64_t);
+			case PrimitiveType::UInt8:  return sizeof(uint8_t);
+			case PrimitiveType::UInt16: return sizeof(uint16_t);
+			case PrimitiveType::UInt32: return sizeof(uint32_t);
+			case PrimitiveType::UInt64: return sizeof(uint64_t);
+			case PrimitiveType::Float:  return sizeof(float);
+			case PrimitiveType::Double: return sizeof(double);
+			default:                    return 0ull;
+		}
 	}
 	
 	constexpr const auto ResolveName() const
 	{
-		if constexpr (mType == PrimitiveType::Bool)
-        	return "bool";
-		else if constexpr (mType == PrimitiveType::WChar)
-			return "wchar_t";
-		else if constexpr (mType == PrimitiveType::Char)
-			return "char";
-		else if constexpr (mType == PrimitiveType::Int8)
-			return "int8_t";
-		else if constexpr (mType == PrimitiveType::Int16)
-			return "int16_t";
-		else if constexpr (mType == PrimitiveType::Int32)
-			return "int32_t";
-		else if constexpr (mType == PrimitiveType::Int64)
-			return "int64_t";
-		else if constexpr (mType == PrimitiveType::UInt8)
-			return "uint8_t";
-		else if constexpr (mType == PrimitiveType::UInt16)
-			return "uint16_t";
-		else if constexpr (mType == PrimitiveType::UInt32)
-			return "uint32_t";
-		else if constexpr (mType == PrimitiveType::UInt64)
-			return "uint64_t";
-		else if constexpr (mType == PrimitiveType::Float)
-			return "float";
-		else if constexpr (mType == PrimitiveType::Double)
-			return "double";
-		else if constexpr (mType == PrimitiveType::Void)
-			return "void";
-		else
-			return "";
+		switch (mType)
+		{
+			case PrimitiveType::Bool:   return "bool";
+			case PrimitiveType::WChar:  return "wchar_t";
+			case PrimitiveType::Char:   return "char";
+			case PrimitiveType::Int8:   return "int8_t";
+			case PrimitiveType::Int16:  return "int16_t";
+			case PrimitiveType::Int32:  return "int32_t";
+			case PrimitiveType::Int64:  return "int64_t";
+			case PrimitiveType::UInt8:  return "uint8_t";
+			case PrimitiveType::UInt16: return "uint16_t";
+			case PrimitiveType::UInt32: return "uint32_t";
+			case PrimitiveType::UInt64: return "uint64_t";
+			case PrimitiveType::Float:  return "float";
+			case PrimitiveType::Double: return "double";
+			case PrimitiveType::Void:   return "void";
+			default:                    return "";
+		}
 	}
 
 private:
