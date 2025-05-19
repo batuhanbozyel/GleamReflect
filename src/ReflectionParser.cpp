@@ -3,6 +3,7 @@
 #include "Reflection/Database.h"
 
 #include <clang/AST/AST.h>
+#include <clang/AST/Attr.h>
 #include <clang/Tooling/Tooling.h>
 
 #include <fstream>
@@ -99,24 +100,10 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 
 	std::stringstream generatedCode;
 	generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
-	generatedCode << "#include <Reflection/Meta.h>\n";
-	generatedCode << "#include <Reflection/IDatabase.h>\n";
+	generatedCode << "#include <Reflection/Reflection.h>\n";
 	mContext.GenerateForwardDecls(generatedCode);
 
 	generatedCode << "namespace Gleam::Reflection {\n\n";
-
-	generatedCode << "template<typename T>\n";
-	generatedCode << "const EnumDescription& GetEnum()\n";
-	generatedCode << "{\n";
-	generatedCode << "\tstatic_assert(false, \"Enum is not reflected\");\n";
-	generatedCode << "}\n\n";
-
-	generatedCode << "template<typename T>\n";
-	generatedCode << "const ClassDescription& GetClass()\n";
-	generatedCode << "{\n";
-	generatedCode << "\tstatic_assert(false, \"Class is not reflected\");\n";
-	generatedCode << "}\n\n";
-
 	mContext.GenerateMetaDescs(generatedCode);
 	generatedCode << "} // namespace Gleam::Reflection\n";
 

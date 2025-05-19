@@ -82,7 +82,7 @@ public:
 			case PrimitiveType::UInt64: return sizeof(uint64_t);
 			case PrimitiveType::Float:  return sizeof(float);
 			case PrimitiveType::Double: return sizeof(double);
-			default:                    return 0ull;
+			default:                    return (size_t)0ull;
 		}
 	}
 	

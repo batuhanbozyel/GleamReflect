@@ -6,7 +6,7 @@
 namespace Gleam::Reflection {
 
 template<typename T, std::enable_if_t<Traits::IsPrimitive<T>::value, bool> = true>
-static constexpr PrimitiveDescription GetPrimitive()
+inline constexpr PrimitiveDescription GetPrimitive()
 {
 	if constexpr (Traits::IsSame<bool, T>::value)
         return PrimitiveDescription(PrimitiveType::Bool);
@@ -40,46 +40,66 @@ static constexpr PrimitiveDescription GetPrimitive()
         return PrimitiveDescription(PrimitiveType::Invalid);
 }
 
-static constexpr PrimitiveType GetPrimitiveType(uint32_t hash)
+inline constexpr PrimitiveType GetPrimitiveType(uint32_t hash)
 {
     return static_cast<PrimitiveType>(hash);
 }
 
-static const ClassDescription& GetClass(uint32_t hash)
+template<typename T>
+inline const ClassDescription& GetClass()
+{
+	static_assert(Traits::IsClass<T>::value, "T must be an class type");
+	assert(false && "Class is not reflected");
+
+	static ClassDescription invalidDesc;
+	return invalidDesc;
+}
+
+inline const ClassDescription& GetClass(uint32_t hash)
 {
     return *IDatabase::GetInstance()->GetClass(hash);
 }
 
-static const ClassDescription& GetClass(const char* name)
+inline const ClassDescription& GetClass(const char* name)
 {
 	auto hash = Utils::HashString(name);
 	return GetClass(hash);
 }
 
-static const EnumDescription& GetEnum(uint32_t hash)
+template<typename T>
+inline const EnumDescription& GetEnum()
+{
+	static_assert(Traits::IsEnum<T>::value, "T must be an enum type");
+	assert(false && "Enum is not reflected");
+
+	static EnumDescription invalidDesc;
+	return invalidDesc;
+}
+
+inline const EnumDescription& GetEnum(uint32_t hash)
 {
     return *IDatabase::GetInstance()->GetEnum(hash);
 }
 
-static const EnumDescription& GetEnum(const char* name)
+inline const EnumDescription& GetEnum(const char* name)
 {
 	auto hash = Utils::HashString(name);
 	return GetEnum(hash);
 }
 
-static const ArrayDescription& GetArray(uint32_t hash)
+inline const ArrayDescription& GetArray(uint32_t hash)
 {
     return *IDatabase::GetInstance()->GetArray(hash);
 }
 
 template<typename T>
-static constexpr T& Get(void* ptr)
+inline constexpr T& Get(void* ptr)
 {
     return *static_cast<T*>(ptr);
 }
 
 template<typename T>
-static constexpr const T& Get(const void* ptr)
+inline constexpr const T& Get(const void* ptr)
 {
     return *static_cast<const T*>(ptr);
 }
