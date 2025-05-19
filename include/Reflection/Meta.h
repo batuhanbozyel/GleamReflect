@@ -48,6 +48,8 @@ enum class PrimitiveType
 class PrimitiveDescription
 {
 public:
+
+	constexpr PrimitiveDescription() = default;
 	
 	constexpr PrimitiveDescription(PrimitiveType type)
 		: mType(type)
@@ -116,6 +118,8 @@ private:
 class MetaDescription
 {
 public:
+
+	MetaDescription() = default;
     
     MetaDescription(const BufferView& name,
                     const BufferView& qualifiedName,
@@ -208,6 +212,8 @@ private:
 class FieldDescription : public MetaDescription
 {
 public:
+
+	FieldDescription() = default;
     
 	FieldDescription(const MetaDescription& meta, size_t offset, size_t size, MetaType type)
         : MetaDescription(meta)
@@ -243,6 +249,8 @@ private:
 class EnumCaseDescription : public MetaDescription
 {
 public:
+
+	EnumCaseDescription() = default;
     
 	EnumCaseDescription(const MetaDescription& meta, int64_t value)
 		: MetaDescription(meta)
@@ -264,6 +272,8 @@ private:
 class EnumDescription : public MetaDescription
 {
 public:
+
+	EnumDescription() = default;
     
 	EnumDescription(const MetaDescription& meta, size_t size, const BufferView& cases)
 		: MetaDescription(meta)
@@ -295,6 +305,8 @@ class ClassDescription : public MetaDescription
 {
 public:
     
+	ClassDescription() = default;
+
     ClassDescription(const MetaDescription& meta, size_t size, const BufferView& fields, const BufferView& bases)
 		: MetaDescription(meta)
 		, mSize(size)
@@ -335,6 +347,8 @@ class ArrayDescription
     friend class Gleam::ReflectionParser;
     friend class Gleam::ReflectionContext;
 public:
+
+	ArrayDescription() = default;
     
     size_t GetSize() const
     {
