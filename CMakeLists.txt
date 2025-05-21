@@ -25,28 +25,13 @@ project(GleamReflect)
     list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR}/../clang)
     include(AddLLVM)
     include(AddClang)
-    
+
     llvm_map_components_to_libnames(LLVM_LIBS support core frontendopenmp)
     message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
     message(STATUS "LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
     message(STATUS "LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR}")
     message(STATUS "LLVM_LIBS: ${LLVM_LIBS}")
-
-    # Create LLVM/Clang library interface target for organization
-    add_library(LLVMClangInternal INTERFACE)
-    target_link_directories(LLVMClangInternal INTERFACE ${LLVM_LIBRARY_DIR})
-    target_link_libraries(LLVMClangInternal INTERFACE 
-        ${LLVM_LIBS}
-        clangAST
-        clangASTMatchers
-        clangBasic
-        clangFrontend
-        clangSerialization
-        clangTooling
-    )
-    target_include_directories(LLVMClangInternal INTERFACE ${LLVM_INCLUDE_DIRS})
-    set_target_properties(LLVMClangInternal PROPERTIES FOLDER Dependencies)
 
     #enable c++20
     set(CMAKE_CXX_STANDARD 20)
@@ -79,7 +64,24 @@ project(GleamReflect)
     )
 
     add_executable(GleamReflect ${SOURCE_FILES})
-    target_link_libraries(GleamReflect PRIVATE LLVMClangInternal)
+    target_link_directories(GleamReflect PRIVATE ${LLVM_LIBRARY_DIR})
+    target_link_libraries(GleamReflect PRIVATE ${LLVM_LIBS}
+        clangAST
+        clangASTMatchers
+        clangBasic
+        clangFrontend
+        clangSerialization
+        clangTooling
+    )
     target_include_directories(GleamReflect PRIVATE ${INCLUDE_DIRS})
     source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
     SET_WORKING_DIRECTORY(GleamReflect ${CMAKE_SOURCE_DIR})
+
+    set_target_properties(AArch64TargetParserTableGen
+        acc_gen
+        ARMTargetParserTableGen
+        clang-tablegen-targets
+        intrinsics_gen
+        omp_gen
+        RISCVTargetParserTableGen
+        vt_gen PROPERTIES FOLDER Dependencies)
