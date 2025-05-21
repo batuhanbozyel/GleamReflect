@@ -97,8 +97,11 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 
 	// Initialize database for reflection
 	Reflection::Database database;
-	bool success = database.Initialize(databaseFile);
-	assert(success && "Failed to initialize reflection database");
+	if (database.Initialize(databaseFile) == false)
+	{
+		std::cerr << "Failed to initialize reflection database" << std::endl;
+		return;
+	}
 
 	std::stringstream generatedCode;
 	generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
@@ -131,7 +134,11 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
     {
         auto attributes = ParseAttributes(enumAnnotation);
 		auto guid = ExtractGuid(attributes);
-        assert(guid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum is missing GUID attribute");
+		if (guid != Reflection::Attribute::Guid::InvalidGuid())
+		{
+			std::cerr << "Enum {" << enumDecl->getName().str() << "} is missing GUID attribute" << std::endl;
+			return {};
+		}
         
         if (const auto enumHandle = context.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
         {
@@ -166,7 +173,11 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
             {
                 auto itemAttributes = ParseAttributes(itemAnnotation);
                 auto itemGuid = ExtractGuid(itemAttributes);
-                assert(itemGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Enum case is missing GUID attribute");
+				if (itemGuid != Reflection::Attribute::Guid::InvalidGuid())
+				{
+					std::cerr << "Enum case {" << enumDecl->getName().str() << "::" << enumItem->getName().str() << "} is missing GUID attribute" << std::endl;
+					continue;
+				}
 
 				auto itemNameStr = enumItem->getName();
 				auto itemName = mStringWriter.Write(itemNameStr.data(), itemNameStr.size());
@@ -208,7 +219,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
     {
         auto recordAttribs = ParseAttributes(recordAnnotation);
         auto recordGuid = ExtractGuid(recordAttribs);
-        assert(recordGuid != Reflection::Attribute::Guid::InvalidGuid() &&  "Record is missing GUID attribute");
+		if (recordGuid != Reflection::Attribute::Guid::InvalidGuid())
+		{
+			std::cerr << "Class {" << recordDecl->getName().str() << "} is missing GUID attribute" << std::endl;
+			return {};
+		}
         
         if (const auto classHandle = context.GetClassHandle(recordGuid); classHandle != InvalidMetaIndex)
         {
@@ -253,7 +268,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             {
                 auto fieldAttribs = ParseAttributes(annotation);
                 auto fieldGuid = ExtractGuid(fieldAttribs);
-                assert(fieldGuid != Reflection::Attribute::Guid::InvalidGuid() && "Field is missing GUID attribute");
+				if (fieldGuid != Reflection::Attribute::Guid::InvalidGuid())
+				{
+					std::cerr << "Class field {" << recordDecl->getName().str() << "::" << field->getName().str() << "} is missing GUID attribute" << std::endl;
+					continue;
+				}
                 
                 uint32_t fieldHash = 0;
                 Reflection::MetaType fieldMetaType = Reflection::MetaType::Invalid;
@@ -324,7 +343,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             {
                 auto attribs = ParseAttributes(annotation);
                 auto guid = ExtractGuid(attribs);
-                assert(guid != Reflection::Attribute::Guid::InvalidGuid() && "Function is missing GUID attribute");
+				if (guid != Reflection::Attribute::Guid::InvalidGuid())
+				{
+					std::cerr << "Class method {" << recordDecl->getName().str() << "::" << method->getName().str() << "} is missing GUID attribute" << std::endl;
+					continue;
+				}
 
                 // TODO: function reflection support
             }
@@ -449,7 +472,12 @@ Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const Reflection::Buff
 		{
 			auto view = Reflection::Utils::OffsetPointer<Reflection::BufferView>(mObjectWriter.GetBuffer().data, attributes.offset + attributes.size + i * sizeof(Reflection::BufferView));
 			auto guid = Reflection::Utils::OffsetPointer<Reflection::Attribute::Guid>(mObjectWriter.GetBuffer().data, view->offset);
-			assert(view->size == sizeof(Reflection::Attribute::Guid) && "Attribute view does not match with GUID");
+
+			if (view->size != sizeof(Reflection::Attribute::Guid))
+			{
+				std::cerr << "Attribute view does not match with GUID" << std::endl;
+				return Reflection::Attribute::Guid::InvalidGuid();
+			}
 			return *guid;
 		}
 	}
