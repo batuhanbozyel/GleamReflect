@@ -72,6 +72,7 @@ public:
     EnumHandle GetEnumHandle(const Reflection::Attribute::Guid& guid) const;
     ClassHandle GetClassHandle(const Reflection::Attribute::Guid& guid) const;
     
+	bool Empty() const;
     bool Contains(const Reflection::Attribute::Guid& guid) const;
     
     const std::string_view Name() const;

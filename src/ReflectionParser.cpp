@@ -50,12 +50,14 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
     }
 }
 
-void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
+void ReflectionParser::GenerateOutput(const std::string& moduleName,
+									  const std::filesystem::path& headerDir, 
+									  const std::filesystem::path& binaryDir)
 {
 	// Generated database
+	auto databaseFile = binaryDir / (moduleName + ".Reflection.db");
     {
-		auto filename = outputDir / "Reflection.db";
-		std::ofstream file(filename, std::ios::out | std::ios::trunc | std::ios::binary);
+		std::ofstream file(databaseFile, std::ios::out | std::ios::trunc | std::ios::binary);
 
 		size_t bufferSize = sizeof(Reflection::DatabaseHeader)
 			+ mObjectWriter.GetBuffer().size
@@ -95,7 +97,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 
 	// Initialize database for reflection
 	Reflection::Database database;
-	bool success = database.Initialize(outputDir / "Reflection.db");
+	bool success = database.Initialize(databaseFile);
 	assert(success && "Failed to initialize reflection database");
 
 	std::stringstream generatedCode;
@@ -111,7 +113,7 @@ void ReflectionParser::GenerateOutput(const std::filesystem::path& outputDir)
 
 	// Generated header
 	{
-		auto filename = outputDir / "Reflection.generated.h";
+		auto filename = headerDir / (moduleName + ".Reflection.generated.h");
 		std::ofstream file(filename, std::ios::out | std::ios::trunc);
 
 		auto generatedCodeStr = generatedCode.str();

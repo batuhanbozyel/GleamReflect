@@ -34,8 +34,12 @@ class ReflectionFrontendAction : public clang::ASTFrontendAction
 {
 public:
     
-    explicit ReflectionFrontendAction(const std::filesystem::path& outputDir)
-        : mOutputDir(outputDir)
+    explicit ReflectionFrontendAction(const std::string& moduleName,
+									  const std::filesystem::path& headerDir, 
+									  const std::filesystem::path& binaryDir)
+		: mModuleName(moduleName)
+        , mHeaderDir(headerDir)
+		, mBinaryDir(binaryDir)
     {
         
     }
@@ -47,40 +51,60 @@ public:
     
     void EndSourceFileAction() override
     {
-        mParser.GenerateOutput(mOutputDir);
+        mParser.GenerateOutput(mModuleName, mHeaderDir, mBinaryDir);
     }
     
 private:
     
     ReflectionParser mParser;
-    std::filesystem::path mOutputDir;
+	std::string mModuleName;
+    std::filesystem::path mHeaderDir;
+	std::filesystem::path mBinaryDir;
 };
 
 class ReflectionFrontendActionFactory : public clang::tooling::FrontendActionFactory
 {
 public:
     
-    explicit ReflectionFrontendActionFactory(const std::filesystem::path& outputDir)
-        : mOutputDir(outputDir)
-    {
-        
-    }
+    explicit ReflectionFrontendActionFactory(const std::string& moduleName,
+											 const std::filesystem::path& headerDir, 
+											 const std::filesystem::path& binaryDir)
+        : mModuleName(moduleName)
+        , mHeaderDir(headerDir)
+		, mBinaryDir(binaryDir)
+	{
+		
+	}
     
     virtual std::unique_ptr<clang::FrontendAction> create() override
     {
-        return std::make_unique<ReflectionFrontendAction>(mOutputDir);
+        return std::make_unique<ReflectionFrontendAction>(mModuleName, mHeaderDir, mBinaryDir);
     }
     
 private:
     
-    std::filesystem::path mOutputDir;
+	std::string mModuleName;
+	std::filesystem::path mHeaderDir;
+	std::filesystem::path mBinaryDir;
 };
 
 static llvm::cl::OptionCategory ReflectionToolCategory("C++ Reflection");
 static llvm::cl::extrahelp CommonHelp(clang::tooling::CommonOptionsParser::HelpMessage);
 
-static llvm::cl::opt<std::string> OutputDir("output-dir",
-                                            llvm::cl::desc("Specify output directory for generated files"),
+static llvm::cl::opt<std::string> Module("module",
+                                         llvm::cl::desc("Specify module name for reflection"),
+                                         llvm::cl::value_desc("name"),
+                                         llvm::cl::Required,
+                                         llvm::cl::cat(ReflectionToolCategory));
+
+static llvm::cl::opt<std::string> HeaderDir("header-dir",
+                                            llvm::cl::desc("Specify output directory for generated header"),
+                                            llvm::cl::value_desc("directory"),
+                                            llvm::cl::Required,
+                                            llvm::cl::cat(ReflectionToolCategory));
+
+static llvm::cl::opt<std::string> BinaryDir("binary-dir",
+                                            llvm::cl::desc("Specify output directory for database"),
                                             llvm::cl::value_desc("directory"),
                                             llvm::cl::Required,
                                             llvm::cl::cat(ReflectionToolCategory));
@@ -101,10 +125,13 @@ int main(int argc, const char **argv)
     {
         clang::tooling::CommandLineArguments adjustedArgs = args;
         adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
+		adjustedArgs.push_back("--no-warnings");
         return adjustedArgs;
     });
     
-	std::string outputDirectory = OutputDir;
-    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(outputDirectory);
+	std::string moduleName = Module;
+	std::string headerDirectory = HeaderDir;
+	std::string binaryDirectory = BinaryDir;
+    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(moduleName, headerDirectory, binaryDirectory);
     return tool.run(frontendActionFactory.get());
 }

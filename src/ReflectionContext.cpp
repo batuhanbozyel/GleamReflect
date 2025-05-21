@@ -11,7 +11,7 @@ ReflectionContext::ReflectionContext(const std::string_view name, const std::str
 
 void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 {
-	if (mGuidToEnum.empty() && mGuidToClass.empty() && mContexts.empty())
+	if (Empty())
 	{
 		return;
 	}
@@ -50,6 +50,11 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 
 void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 {
+	if (Empty())
+	{
+		return;
+	}
+
 	for (const auto& [guid, handle] : mGuidToEnum)
 	{
 		const auto& enumDesc = mEnums[handle];
@@ -155,6 +160,16 @@ EnumHandle ReflectionContext::GetEnumHandle(const Reflection::Attribute::Guid& g
         return EnumHandle(InvalidMetaIndex);
     }
     return it->second;
+}
+
+bool ReflectionContext::Empty() const
+{
+	bool subcontextsEmpty = mContexts.empty() == false;
+	for (const auto& ctx : mContexts)
+	{
+		subcontextsEmpty |= ctx.Empty();
+	}
+	return mGuidToEnum.empty() && mGuidToClass.empty() && subcontextsEmpty;
 }
 
 bool ReflectionContext::Contains(const Reflection::Attribute::Guid& guid) const

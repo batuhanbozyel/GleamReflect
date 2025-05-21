@@ -22,7 +22,9 @@ public:
 
     ReflectionParser();
     void ParseAST(clang::ASTContext& context);
-    void GenerateOutput(const std::filesystem::path& outputDir);
+    void GenerateOutput(const std::string& moduleName,
+						const std::filesystem::path& headerDir, 
+						const std::filesystem::path& binaryDir);
     
 private:
     void ParseDecls(ReflectionContext& context, const clang::DeclContext::decl_range& decls);

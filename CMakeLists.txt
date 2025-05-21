@@ -33,6 +33,21 @@ project(GleamReflect)
     message(STATUS "LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR}")
     message(STATUS "LLVM_LIBS: ${LLVM_LIBS}")
 
+    # Create LLVM/Clang library interface target for organization
+    add_library(LLVMClangInternal INTERFACE)
+    target_link_directories(LLVMClangInternal INTERFACE ${LLVM_LIBRARY_DIR})
+    target_link_libraries(LLVMClangInternal INTERFACE 
+        ${LLVM_LIBS}
+        clangAST
+        clangASTMatchers
+        clangBasic
+        clangFrontend
+        clangSerialization
+        clangTooling
+    )
+    target_include_directories(LLVMClangInternal INTERFACE ${LLVM_INCLUDE_DIRS})
+    set_target_properties(LLVMClangInternal PROPERTIES FOLDER Dependencies)
+
     #enable c++20
     set(CMAKE_CXX_STANDARD 20)
     set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -64,15 +79,7 @@ project(GleamReflect)
     )
 
     add_executable(GleamReflect ${SOURCE_FILES})
-    target_link_directories(GleamReflect PRIVATE ${LLVM_LIBRARY_DIR})
-    target_link_libraries(GleamReflect PRIVATE ${LLVM_LIBS}
-        clangAST
-        clangASTMatchers
-        clangBasic
-        clangFrontend
-        clangSerialization
-        clangTooling
-    )
+    target_link_libraries(GleamReflect PRIVATE LLVMClangInternal)
     target_include_directories(GleamReflect PRIVATE ${INCLUDE_DIRS})
     source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
     SET_WORKING_DIRECTORY(GleamReflect ${CMAKE_SOURCE_DIR})
