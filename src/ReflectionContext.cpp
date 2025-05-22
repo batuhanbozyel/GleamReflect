@@ -164,12 +164,19 @@ EnumHandle ReflectionContext::GetEnumHandle(const Reflection::Attribute::Guid& g
 
 bool ReflectionContext::Empty() const
 {
-	bool subcontextsEmpty = mContexts.empty() == false;
+	if ((mGuidToEnum.empty() && mGuidToClass.empty()) == false)
+	{
+		return false;
+	}
+
 	for (const auto& ctx : mContexts)
 	{
-		subcontextsEmpty |= ctx.Empty();
+		if (ctx.Empty() == false)
+		{
+			return false;
+		}
 	}
-	return mGuidToEnum.empty() && mGuidToClass.empty() && subcontextsEmpty;
+	return true;
 }
 
 bool ReflectionContext::Contains(const Reflection::Attribute::Guid& guid) const

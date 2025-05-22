@@ -134,7 +134,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
     {
         auto attributes = ParseAttributes(enumAnnotation);
 		auto guid = ExtractGuid(attributes);
-		if (guid != Reflection::Attribute::Guid::InvalidGuid())
+		if (guid == Reflection::Attribute::Guid::InvalidGuid())
 		{
 			std::cerr << enumDecl->getName().str() << " is missing GUID attribute" << std::endl;
 			return {};
@@ -179,7 +179,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
             {
                 auto itemAttributes = ParseAttributes(itemAnnotation);
                 auto itemGuid = ExtractGuid(itemAttributes);
-				if (itemGuid != Reflection::Attribute::Guid::InvalidGuid())
+				if (itemGuid == Reflection::Attribute::Guid::InvalidGuid())
 				{
 					std::cerr << enumDecl->getName().str() << "::" << enumItem->getName().str() << " is missing GUID attribute" << std::endl;
 					continue;
@@ -237,7 +237,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
     {
         auto recordAttribs = ParseAttributes(recordAnnotation);
         auto recordGuid = ExtractGuid(recordAttribs);
-		if (recordGuid != Reflection::Attribute::Guid::InvalidGuid())
+		if (recordGuid == Reflection::Attribute::Guid::InvalidGuid())
 		{
 			std::cerr << recordDecl->getName().str() << " is missing GUID attribute" << std::endl;
 			return {};
@@ -292,7 +292,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             {
                 auto fieldAttribs = ParseAttributes(annotation);
                 auto fieldGuid = ExtractGuid(fieldAttribs);
-				if (fieldGuid != Reflection::Attribute::Guid::InvalidGuid())
+				if (fieldGuid == Reflection::Attribute::Guid::InvalidGuid())
 				{
 					std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is missing GUID attribute" << std::endl;
 					continue;
@@ -373,7 +373,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             {
                 auto attribs = ParseAttributes(annotation);
                 auto guid = ExtractGuid(attribs);
-				if (guid != Reflection::Attribute::Guid::InvalidGuid())
+				if (guid == Reflection::Attribute::Guid::InvalidGuid())
 				{
 					std::cerr << recordDecl->getName().str() << "::" << method->getName().str() << " is missing GUID attribute" << std::endl;
 					continue;

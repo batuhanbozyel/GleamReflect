@@ -4,34 +4,10 @@ cmake_minimum_required(VERSION 3.20)
 
 project(GleamReflect)
 
-    if (WIN32)
-        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT GleamReflect)
-    elseif (APPLE)
-        set(CMAKE_OSX_ARCHITECTURES "arm64")
-        set(CMAKE_XCODE_GENERATE_SCHEME true)
-        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE GleamReflect)
-    endif()
-
     #preventing in source build
     if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
         message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt.")
     endif()
-
-    # Configure LLVM
-    set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra" CACHE STRING "List of LLVM projects to build")
-    find_package(LLVM REQUIRED CONFIG)
-    find_package(Clang REQUIRED CONFIG)
-
-    list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR}/../clang)
-    include(AddLLVM)
-    include(AddClang)
-
-    llvm_map_components_to_libnames(LLVM_LIBS support core frontendopenmp)
-    message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-    message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-    message(STATUS "LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
-    message(STATUS "LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR}")
-    message(STATUS "LLVM_LIBS: ${LLVM_LIBS}")
 
     #enable c++20
     set(CMAKE_CXX_STANDARD 20)
@@ -55,33 +31,66 @@ project(GleamReflect)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/$<CONFIGURATION>)
 
     # GleamReflect project
-    set(INCLUDE_DIRS include ${LLVM_INCLUDE_DIRS})
     file(GLOB_RECURSE SOURCE_FILES 
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
     )
-
-    add_executable(GleamReflect ${SOURCE_FILES})
-    target_link_directories(GleamReflect PRIVATE ${LLVM_LIBRARY_DIR})
-    target_link_libraries(GleamReflect PRIVATE ${LLVM_LIBS}
-        clangAST
-        clangASTMatchers
-        clangBasic
-        clangFrontend
-        clangSerialization
-        clangTooling
+    file(GLOB_RECURSE INCLUDE_FILES 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
     )
-    target_include_directories(GleamReflect PRIVATE ${INCLUDE_DIRS})
-    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
-    SET_WORKING_DIRECTORY(GleamReflect ${CMAKE_SOURCE_DIR})
+    add_library(GleamReflect INTERFACE ${INCLUDE_FILES})
+    target_include_directories(GleamReflect INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-    set_target_properties(AArch64TargetParserTableGen
-        acc_gen
-        ARMTargetParserTableGen
-        clang-tablegen-targets
-        intrinsics_gen
-        omp_gen
-        RISCVTargetParserTableGen
-        vt_gen PROPERTIES FOLDER Dependencies)
+    option(BUILD_CPP_PARSER "Build the CppParser executable" OFF)
+    if (BUILD_CPP_PARSER)
+        if (WIN32)
+            set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT CppParser)
+        elseif (APPLE)
+            set(CMAKE_OSX_ARCHITECTURES "arm64")
+            set(CMAKE_XCODE_GENERATE_SCHEME true)
+            set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE CppParser)
+        endif()
+
+        # Configure LLVM
+        set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra" CACHE STRING "List of LLVM projects to build")
+        find_package(LLVM REQUIRED CONFIG)
+        find_package(Clang REQUIRED CONFIG)
+
+        list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR}/../clang)
+        include(AddLLVM)
+        include(AddClang)
+
+        llvm_map_components_to_libnames(LLVM_LIBS support core frontendopenmp)
+        message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+        message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+        message(STATUS "LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
+        message(STATUS "LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR}")
+        message(STATUS "LLVM_LIBS: ${LLVM_LIBS}")
+
+        add_executable(CppParser ${SOURCE_FILES} ${INCLUDE_FILES})
+        target_link_directories(CppParser PRIVATE ${LLVM_LIBRARY_DIR})
+        target_link_libraries(CppParser PRIVATE ${LLVM_LIBS}
+            clangAST
+            clangASTMatchers
+            clangBasic
+            clangFrontend
+            clangSerialization
+            clangTooling
+        )
+        target_include_directories(CppParser PRIVATE ${LLVM_INCLUDE_DIRS}
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        SET_WORKING_DIRECTORY(CppParser ${CMAKE_SOURCE_DIR})
+
+        source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
+
+        set_target_properties(AArch64TargetParserTableGen
+            acc_gen
+            ARMTargetParserTableGen
+            clang-tablegen-targets
+            intrinsics_gen
+            omp_gen
+            RISCVTargetParserTableGen
+            vt_gen PROPERTIES FOLDER Dependencies)
+    endif()
