@@ -102,7 +102,7 @@ ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription&
     if (it != mGuidToClass.end())
     {
         // ASSERT duplicate guid
-        return it->second;
+        return {};
     }
     
     uint32_t index = static_cast<uint32_t>(mClasses.size());
@@ -117,7 +117,7 @@ EnumHandle ReflectionContext::RegisterEnum(const Reflection::EnumDescription& en
     if (it != mGuidToEnum.end())
     {
         // ASSERT duplicate guid
-        return it->second;
+        return {};
     }
     
     uint32_t index = static_cast<uint32_t>(mEnums.size());

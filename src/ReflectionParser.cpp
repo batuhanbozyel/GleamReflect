@@ -136,7 +136,13 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
 		auto guid = ExtractGuid(attributes);
 		if (guid != Reflection::Attribute::Guid::InvalidGuid())
 		{
-			std::cerr << "Enum {" << enumDecl->getName().str() << "} is missing GUID attribute" << std::endl;
+			std::cerr << enumDecl->getName().str() << " is missing GUID attribute" << std::endl;
+			return {};
+		}
+
+		if (mContext.Contains(guid))
+		{
+			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;
 			return {};
 		}
         
@@ -175,8 +181,14 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
                 auto itemGuid = ExtractGuid(itemAttributes);
 				if (itemGuid != Reflection::Attribute::Guid::InvalidGuid())
 				{
-					std::cerr << "Enum case {" << enumDecl->getName().str() << "::" << enumItem->getName().str() << "} is missing GUID attribute" << std::endl;
+					std::cerr << enumDecl->getName().str() << "::" << enumItem->getName().str() << " is missing GUID attribute" << std::endl;
 					continue;
+				}
+
+				if (mContext.Contains(itemGuid))
+				{
+					std::cerr << enumDecl->getName().str() << "::" << enumItem->getName().str()<< " GUID already exists" << std::endl;
+					return {};
 				}
 
 				auto itemNameStr = enumItem->getName();
@@ -200,7 +212,13 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
         }
 
         auto cases = mObjectWriter.Write(enumCases.data(), enumCases.size() * sizeof(Reflection::EnumCaseDescription));
-        return context.RegisterEnum(Reflection::EnumDescription({ name, qualifiedName, attributes, guid, typeHash }, enumSize, cases));
+        auto handle = context.RegisterEnum(Reflection::EnumDescription({ name, qualifiedName, attributes, guid, typeHash }, enumSize, cases));
+		if (handle == InvalidMetaIndex)
+		{
+			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;
+			return {};
+		}
+		return handle;
     }
     return {};
 }
@@ -221,7 +239,13 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
         auto recordGuid = ExtractGuid(recordAttribs);
 		if (recordGuid != Reflection::Attribute::Guid::InvalidGuid())
 		{
-			std::cerr << "Class {" << recordDecl->getName().str() << "} is missing GUID attribute" << std::endl;
+			std::cerr << recordDecl->getName().str() << " is missing GUID attribute" << std::endl;
+			return {};
+		}
+
+		if (mContext.Contains(recordGuid))
+		{
+			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
 			return {};
 		}
         
@@ -270,7 +294,13 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
                 auto fieldGuid = ExtractGuid(fieldAttribs);
 				if (fieldGuid != Reflection::Attribute::Guid::InvalidGuid())
 				{
-					std::cerr << "Class field {" << recordDecl->getName().str() << "::" << field->getName().str() << "} is missing GUID attribute" << std::endl;
+					std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is missing GUID attribute" << std::endl;
+					continue;
+				}
+
+				if (mContext.Contains(fieldGuid))
+				{
+					std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " GUID already exists" << std::endl;
 					continue;
 				}
                 
@@ -345,7 +375,13 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
                 auto guid = ExtractGuid(attribs);
 				if (guid != Reflection::Attribute::Guid::InvalidGuid())
 				{
-					std::cerr << "Class method {" << recordDecl->getName().str() << "::" << method->getName().str() << "} is missing GUID attribute" << std::endl;
+					std::cerr << recordDecl->getName().str() << "::" << method->getName().str() << " is missing GUID attribute" << std::endl;
+					continue;
+				}
+
+				if (mContext.Contains(guid))
+				{
+					std::cerr << recordDecl->getName().str() << "::" << method->getName().str() << " GUID already exists" << std::endl;
 					continue;
 				}
 
@@ -356,7 +392,14 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
         uint32_t typeHash = Reflection::Utils::HashString(qualifiedClassNameStr.c_str());
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
-        return context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases));
+		
+        auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases));
+		if (handle == InvalidMetaIndex)
+		{
+			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
+			return {};
+		}
+		return handle;
     }
     return {};
 }
