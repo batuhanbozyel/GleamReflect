@@ -285,6 +285,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
         std::vector<Reflection::FieldDescription> fieldDescs;
         for (const auto field : recordDecl->fields())
         {
+			if (field->hasAttr<clang::AnnotateAttr>() == false)
+			{
+				continue; // item is not reflected
+			}
+
             auto annotateAttr = field->getAttr<clang::AnnotateAttr>();
             auto annotation = annotateAttr->getAnnotation().str();
             
@@ -366,6 +371,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
         // Process functions
         for (const auto method : recordDecl->methods())
         {
+			if (method->hasAttr<clang::AnnotateAttr>() == false)
+			{
+				continue; // item is not reflected
+			}
+
             auto annotateAttr = method->getAttr<clang::AnnotateAttr>();
             auto annotation = annotateAttr->getAnnotation().str();
             
