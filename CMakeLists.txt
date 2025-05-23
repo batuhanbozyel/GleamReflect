@@ -41,14 +41,14 @@ project(GleamReflect)
     add_library(GleamReflect INTERFACE ${INCLUDE_FILES})
     target_include_directories(GleamReflect INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-    option(BUILD_CPP_PARSER "Build the CppParser executable" OFF)
-    if (BUILD_CPP_PARSER)
+    option(BUILD_CPP_REFLECTION "Build the CppReflection executable" OFF)
+    if (BUILD_CPP_REFLECTION)
         if (WIN32)
-            set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT CppParser)
+            set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT CppReflection)
         elseif (APPLE)
             set(CMAKE_OSX_ARCHITECTURES "arm64")
             set(CMAKE_XCODE_GENERATE_SCHEME true)
-            set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE CppParser)
+            set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE CppReflection)
         endif()
 
         # Configure LLVM
@@ -67,9 +67,9 @@ project(GleamReflect)
         message(STATUS "LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR}")
         message(STATUS "LLVM_LIBS: ${LLVM_LIBS}")
 
-        add_executable(CppParser ${SOURCE_FILES} ${INCLUDE_FILES})
-        target_link_directories(CppParser PRIVATE ${LLVM_LIBRARY_DIR})
-        target_link_libraries(CppParser PRIVATE ${LLVM_LIBS}
+        add_executable(CppReflection ${SOURCE_FILES} ${INCLUDE_FILES})
+        target_link_directories(CppReflection PRIVATE ${LLVM_LIBRARY_DIR})
+        target_link_libraries(CppReflection PRIVATE ${LLVM_LIBS}
             clangAST
             clangASTMatchers
             clangBasic
@@ -77,11 +77,11 @@ project(GleamReflect)
             clangSerialization
             clangTooling
         )
-        target_include_directories(CppParser PRIVATE ${LLVM_INCLUDE_DIRS}
+        target_include_directories(CppReflection PRIVATE ${LLVM_INCLUDE_DIRS}
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
-        SET_WORKING_DIRECTORY(CppParser ${CMAKE_SOURCE_DIR})
+        SET_WORKING_DIRECTORY(CppReflection ${CMAKE_SOURCE_DIR})
 
         source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
 
