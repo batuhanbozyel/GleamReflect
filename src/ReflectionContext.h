@@ -63,7 +63,7 @@ public:
 	void GenerateForwardDecls(std::stringstream& ss) const;
     void GenerateMetaDescs(std::stringstream& ss) const;
 
-    void EmplaceContext(const ReflectionContext& context);
+    ReflectionContext& EmplaceContext(const std::string_view name, const std::string& qualifiedName);
     
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
     ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc);

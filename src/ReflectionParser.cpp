@@ -28,7 +28,7 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
     {
         if (const auto enumDecl = llvm::dyn_cast<clang::EnumDecl>(decl))
         {
-            if (enumDecl->hasAttr<clang::AnnotateAttr>())
+            if (enumDecl->hasAttr<clang::AnnotateAttr>() && enumDecl->isCompleteDefinition())
             {
                 HandleEnumDecl(context, enumDecl);
             }
@@ -42,10 +42,9 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
         }
         else if (const auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(decl))
         {
-            ReflectionContext namespaceCtx(namespaceDecl->getName(),
-                                           namespaceDecl->getQualifiedNameAsString());
+			auto& namespaceCtx = context.EmplaceContext(namespaceDecl->getName(),
+														namespaceDecl->getQualifiedNameAsString());
             ParseDecls(namespaceCtx, namespaceDecl->decls());
-            context.EmplaceContext(namespaceCtx);
         }
     }
 }
@@ -140,17 +139,6 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
 			return {};
 		}
 
-		if (mContext.Contains(guid))
-		{
-			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;
-			return {};
-		}
-        
-        if (const auto enumHandle = context.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
-        {
-            return enumHandle; // already processed
-        }
-
 		auto nameStr = enumDecl->getName();
 		auto name = mStringWriter.Write(nameStr.data(), nameStr.size());
 
@@ -160,9 +148,19 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
 		auto qualifiedNameStr = qualifiedNameSS.str();
 		auto qualifiedName = mStringWriter.Write(qualifiedNameStr.data(), qualifiedNameStr.size());
 
-        auto& astContext = enumDecl->getASTContext();
-        uint32_t typeHash = Reflection::Utils::HashString(qualifiedNameStr.c_str());
-        size_t enumSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
+		auto& astContext = enumDecl->getASTContext();
+		uint32_t typeHash = Reflection::Utils::HashString(qualifiedNameStr.c_str());
+		size_t enumSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
+
+		if (const auto enumHandle = context.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
+		{
+			if (typeHash == mContext.mEnums[enumHandle].TypeHash())
+			{
+				return enumHandle; // already processed
+			}
+			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;
+			return {};
+		}
 
 		std::vector<Reflection::EnumCaseDescription> enumCases;
         for (const auto enumItem : enumDecl->enumerators())
@@ -243,19 +241,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 			return {};
 		}
 
-		if (mContext.Contains(recordGuid))
-		{
-			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
-			return {};
-		}
-        
-        if (const auto classHandle = context.GetClassHandle(recordGuid); classHandle != InvalidMetaIndex)
-        {
-            return classHandle; // already processed
-        }
-        
-        auto& astContext = recordDecl->getASTContext();
-        size_t classSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
+		auto& astContext = recordDecl->getASTContext();
+		size_t classSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
 
 		auto classNameStr = recordDecl->getName();
 		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
@@ -265,6 +252,17 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 
 		auto qualifiedClassNameStr = qualifiedClassNameSS.str();
 		auto qualifiedClassName = mStringWriter.Write(qualifiedClassNameStr.data(), qualifiedClassNameStr.size());
+		uint32_t typeHash = Reflection::Utils::HashString(qualifiedClassNameStr.c_str());
+        
+        if (const auto classHandle = context.GetClassHandle(recordGuid); classHandle != InvalidMetaIndex)
+        {
+			if (typeHash == mContext.mClasses[classHandle].TypeHash())
+			{
+				return classHandle; // already processed
+			}
+			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
+			return {};
+        }
 
         // Process bases
 		std::vector<ClassHandle> baseClasses;
@@ -399,7 +397,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             }
         }
         
-        uint32_t typeHash = Reflection::Utils::HashString(qualifiedClassNameStr.c_str());
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		

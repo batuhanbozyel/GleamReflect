@@ -84,9 +84,16 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
     }
 }
 
-void ReflectionContext::EmplaceContext(const ReflectionContext& context)
+ReflectionContext& ReflectionContext::EmplaceContext(const std::string_view name, const std::string& qualifiedName)
 {
-    mContexts.emplace_back(context);
+	auto it = std::find_if(mContexts.begin(), mContexts.end(), [&](const ReflectionContext& ctx) {
+		return ctx.QualifiedName() == qualifiedName;
+	});
+	if (it != mContexts.end())
+	{
+		return *it;
+	}
+	return mContexts.emplace_back(name, qualifiedName);
 }
 
 ArrayHandle ReflectionContext::RegisterArray(const Reflection::ArrayDescription& arrayDesc)

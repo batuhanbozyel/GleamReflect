@@ -1,4 +1,4 @@
-#include "Macro.h"
+#include "../include/Reflection/Macro.h"
 
 namespace Gleam {
 
@@ -103,8 +103,3 @@ GSTRUCT(Camera, "33D48E5D-6A9F-4D11-8A55-82F5C0EECECE", EntityComponent, Seriali
 } // namespace Renderer
 
 } // namespace Gleam
-
-int main()
-{
-    return 0;
-}

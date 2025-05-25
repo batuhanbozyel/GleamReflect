@@ -9,6 +9,7 @@
 namespace clang {
 class ASTContext;
 class CXXRecordDecl;
+class ClassTemplateDecl;
 class EnumDecl;
 class ConstantArrayType;
 class BuiltinType;
