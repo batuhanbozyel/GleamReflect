@@ -86,7 +86,8 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 
 ReflectionContext& ReflectionContext::EmplaceContext(const std::string_view name, const std::string& qualifiedName)
 {
-	auto it = std::find_if(mContexts.begin(), mContexts.end(), [&](const ReflectionContext& ctx) {
+	auto it = std::find_if(mContexts.begin(), mContexts.end(), [&](const ReflectionContext& ctx)
+	{
 		return ctx.QualifiedName() == qualifiedName;
 	});
 	if (it != mContexts.end())

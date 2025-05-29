@@ -34,12 +34,8 @@ class ReflectionFrontendAction : public clang::ASTFrontendAction
 {
 public:
     
-    explicit ReflectionFrontendAction(const std::string& moduleName,
-									  const std::filesystem::path& headerDir, 
-									  const std::filesystem::path& binaryDir)
-		: mModuleName(moduleName)
-        , mHeaderDir(headerDir)
-		, mBinaryDir(binaryDir)
+    explicit ReflectionFrontendAction(ReflectionParser& parser)
+		: mParser(parser)
     {
         
     }
@@ -49,43 +45,29 @@ public:
         return std::make_unique<ReflectionASTConsumer>(mParser);
     }
     
-    void EndSourceFileAction() override
-    {
-        mParser.GenerateOutput(mModuleName, mHeaderDir, mBinaryDir);
-    }
-    
 private:
     
-    ReflectionParser mParser;
-	std::string mModuleName;
-    std::filesystem::path mHeaderDir;
-	std::filesystem::path mBinaryDir;
+    ReflectionParser& mParser;
 };
 
 class ReflectionFrontendActionFactory : public clang::tooling::FrontendActionFactory
 {
 public:
     
-    explicit ReflectionFrontendActionFactory(const std::string& moduleName,
-											 const std::filesystem::path& headerDir, 
-											 const std::filesystem::path& binaryDir)
-        : mModuleName(moduleName)
-        , mHeaderDir(headerDir)
-		, mBinaryDir(binaryDir)
+    explicit ReflectionFrontendActionFactory(ReflectionParser& parser)
+        : mParser(parser)
 	{
 		
 	}
     
     virtual std::unique_ptr<clang::FrontendAction> create() override
     {
-        return std::make_unique<ReflectionFrontendAction>(mModuleName, mHeaderDir, mBinaryDir);
+        return std::make_unique<ReflectionFrontendAction>(mParser);
     }
     
 private:
     
-	std::string mModuleName;
-	std::filesystem::path mHeaderDir;
-	std::filesystem::path mBinaryDir;
+	ReflectionParser& mParser;
 };
 
 static llvm::cl::OptionCategory ReflectionToolCategory("C++ Reflection");
@@ -129,9 +111,16 @@ int main(int argc, const char **argv)
         return adjustedArgs;
     });
     
-	std::string moduleName = Module;
-	std::string headerDirectory = HeaderDir;
-	std::string binaryDirectory = BinaryDir;
-    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(moduleName, headerDirectory, binaryDirectory);
-    return tool.run(frontendActionFactory.get());
+	ReflectionParser reflectionParser;
+    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(reflectionParser);
+
+    int result = tool.run(frontendActionFactory.get());
+	if (result == 0)
+	{
+		std::string moduleName = Module;
+		std::string headerDirectory = HeaderDir;
+		std::string binaryDirectory = BinaryDir;
+		reflectionParser.GenerateOutput(moduleName, headerDirectory, binaryDirectory);
+	}
+	return result;
 }
