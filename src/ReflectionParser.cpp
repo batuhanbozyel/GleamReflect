@@ -418,10 +418,9 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         return {};
     }
     
-    Reflection::ArrayDescription arrayDesc;
-    arrayDesc.mSize = arrayType->getSizeBitWidth() / 8ul; // Convert to bytes
-    
+    size_t arraySize = arrayType->getSizeBitWidth() / 8ul; // Convert to bytes
     const clang::QualType elementType = arrayType->getElementType();
+    
     if (elementType->isConstantArrayType())
     {
         const auto innerArrayType = static_cast<const clang::ConstantArrayType*>(elementType->getAsArrayTypeUnsafe());
@@ -430,10 +429,10 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         {
             return {};
         }
+
         const auto& innerArrayDesc = context.mArrays[innerArrayHandle];
-        arrayDesc.mStride = innerArrayDesc.GetSize();
-        arrayDesc.mElementHash = innerArrayHandle;
-        arrayDesc.mElementType = Reflection::MetaType::Array;
+        Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Array, innerArrayHandle, arraySize, innerArrayDesc.GetSize());
+    	return context.RegisterArray(arrayDesc);
     }
     else if (elementType->isRecordType())
     {
@@ -443,10 +442,10 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         {
             return {};
         }
+
         const auto& classDesc = context.mClasses[classHandle];
-        arrayDesc.mStride = classDesc.GetSize();
-        arrayDesc.mElementHash = classDesc.TypeHash();
-        arrayDesc.mElementType = Reflection::MetaType::Class;
+        Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Class, classDesc.TypeHash(), arraySize, classDesc.GetSize());
+    	return context.RegisterArray(arrayDesc);
     }
     else if (elementType->isEnumeralType())
     {
@@ -456,23 +455,18 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         {
             return {};
         }
+
         const auto& enumDesc = context.mEnums[enumHandle];
-        arrayDesc.mStride = enumDesc.GetSize();
-        arrayDesc.mElementHash = enumDesc.TypeHash();
-        arrayDesc.mElementType = Reflection::MetaType::Enum;
+		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Enum, enumDesc.TypeHash(), arraySize, enumDesc.GetSize());
+    	return context.RegisterArray(arrayDesc);
     }
     else if (elementType->isBuiltinType())
     {
         const auto builtinType = elementType->getAs<clang::BuiltinType>();
-        arrayDesc.mStride = BuiltinTypeSize(builtinType);
-        arrayDesc.mElementHash = BuiltinTypeHash(builtinType);
-        arrayDesc.mElementType = Reflection::MetaType::Primitive;
+		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Primitive, BuiltinTypeHash(builtinType), arraySize, BuiltinTypeSize(builtinType));
+    	return context.RegisterArray(arrayDesc);
 	}
-	else
-	{
-		return {};
-	}
-    return context.RegisterArray(arrayDesc);
+	return {};
 }
 
 Reflection::BufferView ReflectionParser::ParseAttributes(const std::string& annotation)

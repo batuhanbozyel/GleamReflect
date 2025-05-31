@@ -45,6 +45,11 @@ inline constexpr PrimitiveType GetPrimitiveType(uint32_t hash)
     return static_cast<PrimitiveType>(hash);
 }
 
+inline constexpr PrimitiveDescription GetPrimitive(uint32_t hash)
+{
+	return PrimitiveDescription(GetPrimitiveType(hash));
+}
+
 template<typename T>
 inline const ClassDescription& GetClass()
 {

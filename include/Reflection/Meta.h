@@ -344,12 +344,19 @@ private:
 
 class ArrayDescription
 {
-    friend class Gleam::ReflectionParser;
-    friend class Gleam::ReflectionContext;
 public:
 
 	ArrayDescription() = default;
     
+    ArrayDescription(MetaType elementType, uint32_t elementHash, size_t size, size_t stride)
+        : mElementType(elementType)
+        , mElementHash(elementHash)
+        , mSize(size)
+		, mStride(stride)
+    {
+        
+    }
+
     size_t GetSize() const
     {
         return mSize;
