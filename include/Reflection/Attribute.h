@@ -2,8 +2,10 @@
 #include "Utils.h"
 #include "Macro.h"
 
+#include <iomanip>
 #include <string>
 #include <regex>
+#include <ios>
 
 namespace Gleam::Reflection {
 
@@ -154,6 +156,32 @@ GLEAM_ATTRIBUTE(Guid)
     {
         return !((*this) == other);
     }
+
+	std::string ToString() const
+	{
+		std::string str;
+		str.resize(36);
+		snprintf(str.data(),
+				str.length() + 1,
+				"%08X-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
+				mData1,
+				mData2,
+				mData3,
+				mData4[0],
+				mData4[1],
+				mData4[2],
+				mData4[3],
+				mData4[4],
+				mData4[5],
+				mData4[6],
+				mData4[7]);
+		return str;
+	}
+
+	operator std::string() const
+    {
+        return ToString();
+    }
 };
 
 GLEAM_ATTRIBUTE(Version)
@@ -211,5 +239,34 @@ struct hash<Gleam::Reflection::Attribute::Guid>
 		return hash;
 	}
 };
+
+inline ostream& operator<<(ostream& s, const Gleam::Reflection::Attribute::Guid& guid)
+{
+	ios_base::fmtflags f(s.flags());
+    const auto& bytes = guid.mBytes;
+	s << hex << setfill('0')
+		<< setw(2) << (int)bytes[0]
+		<< setw(2) << (int)bytes[1]
+		<< setw(2) << (int)bytes[2]
+		<< setw(2) << (int)bytes[3]
+		<< "-"
+		<< setw(2) << (int)bytes[4]
+		<< setw(2) << (int)bytes[5]
+		<< "-"
+		<< setw(2) << (int)bytes[6]
+		<< setw(2) << (int)bytes[7]
+		<< "-"
+		<< setw(2) << (int)bytes[8]
+		<< setw(2) << (int)bytes[9]
+		<< "-"
+		<< setw(2) << (int)bytes[10]
+		<< setw(2) << (int)bytes[11]
+		<< setw(2) << (int)bytes[12]
+		<< setw(2) << (int)bytes[13]
+		<< setw(2) << (int)bytes[14]
+		<< setw(2) << (int)bytes[15];
+	s.flags(f);
+	return s;
+}
 
 } // namespace std
