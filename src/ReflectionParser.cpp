@@ -40,6 +40,21 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
                 HandleRecordDecl(context, recordDecl);
             }
         }
+		else if (const auto templateDecl = llvm::dyn_cast<clang::ClassTemplateDecl>(decl))
+		{
+			auto recordDecl = templateDecl->getTemplatedDecl();
+			if (recordDecl && recordDecl->hasAttr<clang::AnnotateAttr>() && recordDecl->isCompleteDefinition())
+			{
+				HandleRecordDecl(context, recordDecl);
+			}
+		}
+		else if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(decl))
+		{
+			if (specDecl->hasAttr<clang::AnnotateAttr>() && specDecl->isCompleteDefinition())
+			{
+				HandleRecordDecl(context, specDecl);
+			}
+		}
         else if (const auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(decl))
         {
 			auto& namespaceCtx = context.EmplaceContext(namespaceDecl->getName(),
@@ -126,6 +141,16 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 
 EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl)
 {
+	if (enumDecl == nullptr)
+	{
+		return {};
+	}
+
+	if (enumDecl->isInvalidDecl())
+	{
+		return {}; // Invalid declaration, skip processing
+	}
+
     auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
     
@@ -227,6 +252,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
     {
         return {};
     }
+
+	if (recordDecl->isInvalidDecl())
+	{
+		return {}; // Invalid declaration, skip processing
+	}
     
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
     auto recordAnnotation = recordAnnotateAttr->getAnnotation().str();
@@ -242,7 +272,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 		}
 
 		auto& astContext = recordDecl->getASTContext();
-		size_t classSize = astContext.getTypeSize(astContext.getRecordType(recordDecl)) / 8ul; // Convert bits to bytes
+		auto recordType = astContext.getRecordType(recordDecl);
+		size_t classSize = 0;
 
 		auto classNameStr = recordDecl->getName();
 		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
@@ -263,6 +294,33 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
 			return {};
         }
+
+		// Process template parameters
+		Reflection::TemplateType templateType = Reflection::TemplateType::None;
+		Reflection::BufferView templateParams;
+		if (const auto templateDecl = recordDecl->getDescribedClassTemplate(); templateDecl != nullptr)
+		{
+			templateType = Reflection::TemplateType::Template;
+			templateParams = ExtractTemplateParameters(context, templateDecl->getTemplateParameters());
+		}
+		else if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(recordDecl); specDecl != nullptr)
+		{
+			if (llvm::isa<clang::ClassTemplatePartialSpecializationDecl>(specDecl))
+			{
+				const auto partialSpec = static_cast<const clang::ClassTemplatePartialSpecializationDecl*>(specDecl);
+				templateType = Reflection::TemplateType::PartialSpecilization;
+				templateParams = ExtractTemplateParameters(context, partialSpec->getTemplateParameters());
+			}
+			else if (specDecl->isExplicitSpecialization())
+			{
+				templateType = Reflection::TemplateType::FullSpecilization;
+				classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
+			}
+		}
+		else
+		{
+			classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
+		}
 
         // Process bases
 		std::vector<ClassHandle> baseClasses;
@@ -399,8 +457,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
         
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
-		
-        auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases));
+		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams, templateType));
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
@@ -431,7 +488,7 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         }
 
         const auto& innerArrayDesc = context.mArrays[innerArrayHandle];
-        Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Array, innerArrayHandle, arraySize, innerArrayDesc.GetSize());
+        Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Array, innerArrayHandle, arraySize);
     	return context.RegisterArray(arrayDesc);
     }
     else if (elementType->isRecordType())
@@ -444,7 +501,7 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         }
 
         const auto& classDesc = context.mClasses[classHandle];
-        Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Class, classDesc.TypeHash(), arraySize, classDesc.GetSize());
+        Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Class, classDesc.TypeHash(), arraySize);
     	return context.RegisterArray(arrayDesc);
     }
     else if (elementType->isEnumeralType())
@@ -457,13 +514,13 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
         }
 
         const auto& enumDesc = context.mEnums[enumHandle];
-		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Enum, enumDesc.TypeHash(), arraySize, enumDesc.GetSize());
+		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Enum, enumDesc.TypeHash(), arraySize);
     	return context.RegisterArray(arrayDesc);
     }
     else if (elementType->isBuiltinType())
     {
         const auto builtinType = elementType->getAs<clang::BuiltinType>();
-		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Primitive, BuiltinTypeHash(builtinType), arraySize, BuiltinTypeSize(builtinType));
+		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Primitive, BuiltinTypeHash(builtinType), arraySize);
     	return context.RegisterArray(arrayDesc);
 	}
 	return {};
@@ -526,6 +583,42 @@ Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const Reflection::Buff
 		}
 	}
     return Reflection::Attribute::Guid::InvalidGuid();
+}
+
+Reflection::BufferView ReflectionParser::ExtractTemplateParameters(ReflectionContext& context, const clang::TemplateParameterList* params)
+{
+	if (params == nullptr)
+	{
+		return {}; // No template parameters
+	}
+
+	std::vector<Reflection::TemplateParameterDescription> templateParams;
+	for (const auto& param : *params)
+	{
+		auto templateParamType = Reflection::TemplateParameterType::Type;
+		if (const auto typeParam = llvm::dyn_cast<clang::TemplateTypeParmDecl>(param); typeParam != nullptr)
+		{
+			templateParamType = Reflection::TemplateParameterType::Type;
+		}
+		else if (const auto nonTypeParam = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(param); nonTypeParam != nullptr)
+		{
+			templateParamType = Reflection::TemplateParameterType::NoneType;
+		}
+		else if (const auto templateParam = llvm::dyn_cast<clang::TemplateTemplateParmDecl>(param); templateParam != nullptr)
+		{
+			templateParamType = Reflection::TemplateParameterType::Template;
+		}
+		else
+		{
+			std::cerr << "Unknown template parameter type for " << param->getName().str() << std::endl;
+			continue; // Skip unsupported template parameter types
+		}
+
+		auto templateParamNameStr = param->getName();
+		auto templateParamName = mStringWriter.Write(templateParamNameStr.data(), templateParamNameStr.size());
+		templateParams.emplace_back(templateParamName, templateParamType);
+	}
+	return mObjectWriter.Write(templateParams.data(), templateParams.size() * sizeof(Reflection::TemplateParameterDescription));
 }
 
 size_t ReflectionParser::BuiltinTypeSize(const clang::BuiltinType* type) const

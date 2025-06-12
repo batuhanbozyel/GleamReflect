@@ -8,11 +8,6 @@
 #include <cassert>
 #include <variant>
 
-namespace Gleam {
-class ReflectionParser;
-class ReflectionContext;
-} // namespace Gleam
-
 namespace Gleam::Reflection {
 
 enum class MetaType
@@ -43,6 +38,22 @@ enum class PrimitiveType
     Void,
     
     COUNT
+};
+
+enum class TemplateType
+{
+	None,
+	Template, // Template declaration, e.g. template<typename T>
+	PartialSpecilization, // Partial specialization, e.g. template<typename T> struct MyClass<T*>
+	FullSpecilization, // Full specialization, e.g. template<> struct MyClass<int>
+	Instantiation // Instantiation of a template, e.g. MyClass<int>
+};
+
+enum class TemplateParameterType
+{
+	Type, // Type parameter, e.g. T in template<typename T>
+	NoneType, // Non-type parameter, e.g. N in template<int N>
+	Template, // Template parameter, e.g. T in template<template<typename> class T>
 };
 
 class PrimitiveDescription
@@ -113,6 +124,37 @@ public:
 private:
 
 	PrimitiveType mType = PrimitiveType::Invalid;
+};
+
+class TemplateParameterDescription
+{
+public:
+
+	TemplateParameterDescription() = default;
+
+	TemplateParameterDescription(const BufferView& name, TemplateParameterType type)
+		: mName(name)
+		, mType(type)
+	{
+
+	}
+
+	const auto ResolveName() const
+	{
+		const auto str = IDatabase::GetInstance()->GetString(mName);
+		assert(str != nullptr && "Name not found in the database");
+		return std::string_view{ str, mName.size };
+	}
+
+	TemplateParameterType GetType() const
+	{
+		return mType;
+	}
+
+private:
+
+	TemplateParameterType mType = TemplateParameterType::Type;
+	BufferView mName = {};
 };
 
 class MetaDescription
@@ -298,7 +340,6 @@ private:
     
     size_t mSize = 0;
     BufferView mCases = {};
-    
 };
 
 class ClassDescription : public MetaDescription
@@ -307,11 +348,13 @@ public:
     
 	ClassDescription() = default;
 
-    ClassDescription(const MetaDescription& meta, size_t size, const BufferView& fields, const BufferView& bases)
+    ClassDescription(const MetaDescription& meta, size_t size, const BufferView& fields, const BufferView& bases, const BufferView& templateParams, TemplateType templateType)
 		: MetaDescription(meta)
 		, mSize(size)
 		, mFields(fields)
 		, mBaseClasses(bases)
+		, mTemplateParams(templateParams)
+		, mTemplateType(templateType)
     {
         
     }
@@ -329,6 +372,22 @@ public:
         auto classes = IDatabase::GetInstance()->GetClasses();
         return SparseArrayView{ classes.data(), indices };
     }
+
+	auto ResolveTemplateParameters() const
+	{
+		const auto ptr = IDatabase::GetInstance()->GetObject<TemplateParameterDescription>(mTemplateParams);
+		return DenseArrayView{ ptr, mTemplateParams.size / sizeof(TemplateParameterDescription) };
+	}
+
+	bool IsTemplate() const
+	{
+		return mTemplateType != TemplateType::None;
+	}
+
+	TemplateType GetTemplateType() const
+	{
+		return mTemplateType;
+	}
     
     size_t GetSize() const
     {
@@ -340,6 +399,8 @@ private:
     size_t mSize = 0;
     BufferView mFields = {};
     BufferView mBaseClasses = {};
+	BufferView mTemplateParams = {};
+	TemplateType mTemplateType = TemplateType::None;
 };
 
 class ArrayDescription
@@ -348,11 +409,10 @@ public:
 
 	ArrayDescription() = default;
     
-    ArrayDescription(MetaType elementType, uint32_t elementHash, size_t size, size_t stride)
+    ArrayDescription(MetaType elementType, uint32_t elementHash, size_t size)
         : mElementType(elementType)
         , mElementHash(elementHash)
         , mSize(size)
-		, mStride(stride)
     {
         
     }
@@ -360,11 +420,6 @@ public:
     size_t GetSize() const
     {
         return mSize;
-    }
-    
-    size_t GetStride() const
-    {
-        return mStride;
     }
     
     uint32_t ElementHash() const
@@ -380,10 +435,8 @@ public:
 private:
     
     size_t mSize = 0;
-    size_t mStride = 0;
     uint32_t mElementHash = 0;
     MetaType mElementType = MetaType::Invalid;
-    
 };
 
 } // namespace Gleam::Reflection

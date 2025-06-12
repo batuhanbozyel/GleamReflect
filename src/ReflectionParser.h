@@ -13,6 +13,7 @@ class ClassTemplateDecl;
 class EnumDecl;
 class ConstantArrayType;
 class BuiltinType;
+class TemplateParameterList;
 } // namespace clang
 
 namespace Gleam {
@@ -38,6 +39,7 @@ private:
     
     Reflection::BufferView ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
+	Reflection::BufferView ExtractTemplateParameters(ReflectionContext& context, const clang::TemplateParameterList* params);
 
 private:
 
