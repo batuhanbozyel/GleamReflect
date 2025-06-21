@@ -1,4 +1,5 @@
 #include "ReflectionContext.h"
+#include "Reflection/Reflection.h"
 
 using namespace Gleam;
 
@@ -32,7 +33,45 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
         for (const auto& [guid, handle] : mGuidToClass)
         {
             const auto& classDesc = mClasses[handle];
-            ss << "class " << classDesc.ResolveName() << ";\n";
+			if (classDesc.IsTemplate())
+			{
+				auto templateParams = classDesc.ResolveTemplateParameters();
+
+				ss << "class " << classDesc.ResolveName() << "<";
+				for (size_t i = 0; i < templateParams.size(); ++i)
+				{
+					const auto& param = templateParams[i];
+					if (param.GetType() == Reflection::MetaType::Class)
+					{
+						const auto& paramDesc = Reflection::GetClass(param.TypeHash());
+						ss << paramDesc.ResolveQualifiedName();
+					}
+					else if (param.GetType() == Reflection::MetaType::Enum)
+					{
+						const auto& paramDesc = Reflection::GetEnum(param.TypeHash());
+						ss << paramDesc.ResolveQualifiedName();
+					}
+					else if (param.GetType() == Reflection::MetaType::Primitive)
+					{
+						auto paramDesc = Reflection::PrimitiveDescription(static_cast<Reflection::PrimitiveType>(param.TypeHash()));
+						ss << paramDesc.ResolveName();
+					}
+					else
+					{
+						continue; // Unsupported type
+					}
+
+					if (i != templateParams.size() - 1)
+					{
+						ss << ", ";
+					}
+				}
+				ss << ">\n";
+			}
+			else
+			{
+				ss << "class " << classDesc.ResolveName() << ";\n";
+			}
         }
         
         for (const auto& context : mContexts)
@@ -69,8 +108,50 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
     for (const auto& [guid, handle] : mGuidToClass)
     {
         const auto& classDesc = mClasses[handle];
+
+		std::stringstream classNameSS;
+		if (classDesc.IsTemplate())
+		{
+			auto templateParams = classDesc.ResolveTemplateParameters();
+
+			classNameSS << classDesc.ResolveName() << "<";
+			for (size_t i = 0; i < templateParams.size(); ++i)
+			{
+				const auto& param = templateParams[i];
+				if (param.GetType() == Reflection::MetaType::Class)
+				{
+					const auto& paramDesc = Reflection::GetClass(param.TypeHash());
+					classNameSS << paramDesc.ResolveQualifiedName();
+				}
+				else if (param.GetType() == Reflection::MetaType::Enum)
+				{
+					const auto& paramDesc = Reflection::GetEnum(param.TypeHash());
+					classNameSS << paramDesc.ResolveQualifiedName();
+				}
+				else if (param.GetType() == Reflection::MetaType::Primitive)
+				{
+					auto paramDesc = Reflection::PrimitiveDescription(static_cast<Reflection::PrimitiveType>(param.TypeHash()));
+					classNameSS << paramDesc.ResolveName();
+				}
+				else
+				{
+					continue; // Unsupported type
+				}
+
+				if (i != templateParams.size() - 1)
+				{
+					classNameSS << ", ";
+				}
+			}
+			ss << ">";
+		}
+		else
+		{
+			ss << classDesc.ResolveName();
+		}
+
         ss << "template<>\n";
-        ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classDesc.ResolveName() << ">()\n";
+        ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
         ss << "{\n";
         ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
         ss << "\treturn classes[" << handle << "]; \n";

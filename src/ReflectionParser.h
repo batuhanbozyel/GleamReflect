@@ -39,7 +39,6 @@ private:
     
     Reflection::BufferView ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
-	Reflection::BufferView ExtractTemplateParameters(ReflectionContext& context, const clang::TemplateParameterList* params);
 
 private:
 

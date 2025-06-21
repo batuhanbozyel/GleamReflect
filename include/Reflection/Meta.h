@@ -40,22 +40,6 @@ enum class PrimitiveType
     COUNT
 };
 
-enum class TemplateType
-{
-	None,
-	Template, // Template declaration, e.g. template<typename T>
-	PartialSpecilization, // Partial specialization, e.g. template<typename T> struct MyClass<T*>
-	FullSpecilization, // Full specialization, e.g. template<> struct MyClass<int>
-	Instantiation // Instantiation of a template, e.g. MyClass<int>
-};
-
-enum class TemplateParameterType
-{
-	Type, // Type parameter, e.g. T in template<typename T>
-	NoneType, // Non-type parameter, e.g. N in template<int N>
-	Template, // Template parameter, e.g. T in template<template<typename> class T>
-};
-
 class PrimitiveDescription
 {
 public:
@@ -132,29 +116,27 @@ public:
 
 	TemplateParameterDescription() = default;
 
-	TemplateParameterDescription(const BufferView& name, TemplateParameterType type)
-		: mName(name)
-		, mType(type)
+	TemplateParameterDescription(MetaType type, uint32_t hash)
+		: mType(type)
+		, mHash(hash)
 	{
 
 	}
 
-	const auto ResolveName() const
-	{
-		const auto str = IDatabase::GetInstance()->GetString(mName);
-		assert(str != nullptr && "Name not found in the database");
-		return std::string_view{ str, mName.size };
-	}
-
-	TemplateParameterType GetType() const
+	MetaType GetType() const
 	{
 		return mType;
 	}
 
+	uint32_t TypeHash() const
+	{
+		return mHash;
+	}
+
 private:
 
-	TemplateParameterType mType = TemplateParameterType::Type;
-	BufferView mName = {};
+	uint32_t mHash = 0;
+	MetaType mType = MetaType::Invalid;
 };
 
 class MetaDescription
@@ -257,8 +239,9 @@ public:
 
 	FieldDescription() = default;
     
-	FieldDescription(const MetaDescription& meta, size_t offset, size_t size, MetaType type)
+	FieldDescription(const MetaDescription& meta, const BufferView& templateParams, size_t offset, size_t size, MetaType type)
         : MetaDescription(meta)
+		, mTemplateParams(templateParams)
 		, mOffset(offset)
 		, mSize(size)
 		, mType(type)
@@ -280,12 +263,24 @@ public:
     {
         return mType;
     }
+
+	auto ResolveTemplateParameters() const
+	{
+		const auto ptr = IDatabase::GetInstance()->GetObject<TemplateParameterDescription>(mTemplateParams);
+		return DenseArrayView{ ptr, mTemplateParams.size / sizeof(TemplateParameterDescription) };
+	}
+
+	bool IsTemplate() const
+	{
+		return mTemplateParams.size > 0;
+	}
     
 private:
     
     size_t mSize = 0;
     size_t mOffset = 0;
     MetaType mType = MetaType::Invalid;
+	BufferView mTemplateParams = {};
 };
 
 class EnumCaseDescription : public MetaDescription
@@ -348,13 +343,12 @@ public:
     
 	ClassDescription() = default;
 
-    ClassDescription(const MetaDescription& meta, size_t size, const BufferView& fields, const BufferView& bases, const BufferView& templateParams, TemplateType templateType)
+    ClassDescription(const MetaDescription& meta, size_t size, const BufferView& fields, const BufferView& bases, const BufferView& templateParams)
 		: MetaDescription(meta)
 		, mSize(size)
 		, mFields(fields)
 		, mBaseClasses(bases)
 		, mTemplateParams(templateParams)
-		, mTemplateType(templateType)
     {
         
     }
@@ -381,12 +375,7 @@ public:
 
 	bool IsTemplate() const
 	{
-		return mTemplateType != TemplateType::None;
-	}
-
-	TemplateType GetTemplateType() const
-	{
-		return mTemplateType;
+		return mTemplateParams.size > 0;
 	}
     
     size_t GetSize() const
@@ -400,7 +389,6 @@ private:
     BufferView mFields = {};
     BufferView mBaseClasses = {};
 	BufferView mTemplateParams = {};
-	TemplateType mTemplateType = TemplateType::None;
 };
 
 class ArrayDescription
