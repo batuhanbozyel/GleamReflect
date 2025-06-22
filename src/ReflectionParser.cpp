@@ -107,6 +107,7 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 
         const auto& buffer = writer.GetBuffer();
 		file.write(reinterpret_cast<const char*>(buffer.data), buffer.size);
+		file.close();
     }
 
 	// Initialize database for reflection
@@ -135,6 +136,7 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 
 		auto generatedCodeStr = generatedCode.str();
 		file.write(generatedCodeStr.c_str(), generatedCodeStr.length());
+		file.close();
 	}
 	database.Shutdown();
 }

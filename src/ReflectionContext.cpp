@@ -143,11 +143,11 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 					classNameSS << ", ";
 				}
 			}
-			ss << ">";
+			classNameSS << ">";
 		}
 		else
 		{
-			ss << classDesc.ResolveName();
+			classNameSS << classDesc.ResolveName();
 		}
 
         ss << "template<>\n";
