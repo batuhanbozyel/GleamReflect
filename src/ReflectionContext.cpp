@@ -66,7 +66,7 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 						ss << ", ";
 					}
 				}
-				ss << ">\n";
+				ss << ">;\n";
 			}
 			else
 			{
