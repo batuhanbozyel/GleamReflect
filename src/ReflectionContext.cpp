@@ -37,41 +37,18 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 			{
 				auto templateParams = classDesc.ResolveTemplateParameters();
 
-				ss << "class " << classDesc.ResolveName() << "<";
+				ss << "template<";
 				for (size_t i = 0; i < templateParams.size(); ++i)
 				{
-					const auto& param = templateParams[i];
-					if (param.GetType() == Reflection::MetaType::Class)
-					{
-						const auto& paramDesc = Reflection::GetClass(param.TypeHash());
-						ss << paramDesc.ResolveQualifiedName();
-					}
-					else if (param.GetType() == Reflection::MetaType::Enum)
-					{
-						const auto& paramDesc = Reflection::GetEnum(param.TypeHash());
-						ss << paramDesc.ResolveQualifiedName();
-					}
-					else if (param.GetType() == Reflection::MetaType::Primitive)
-					{
-						auto paramDesc = Reflection::PrimitiveDescription(static_cast<Reflection::PrimitiveType>(param.TypeHash()));
-						ss << paramDesc.ResolveName();
-					}
-					else
-					{
-						continue; // Unsupported type
-					}
-
+					ss << "typename T" << i;
 					if (i != templateParams.size() - 1)
 					{
 						ss << ", ";
 					}
 				}
-				ss << ">;\n";
+				ss << ">\n";
 			}
-			else
-			{
-				ss << "class " << classDesc.ResolveName() << ";\n";
-			}
+			ss << "class " << classDesc.ResolveName() << ";\n";
         }
         
         for (const auto& context : mContexts)
