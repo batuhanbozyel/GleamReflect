@@ -82,7 +82,7 @@ private:
     EnumMap mGuidToEnum;
     ClassMap mGuidToClass;
     
-    std::string_view mName;
+    std::string mName;
     std::string mQualifiedName;
     std::vector<ReflectionContext> mContexts;
     
