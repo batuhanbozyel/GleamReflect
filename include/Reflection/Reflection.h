@@ -50,10 +50,9 @@ inline constexpr PrimitiveDescription GetPrimitive(uint32_t hash)
 	return PrimitiveDescription(GetPrimitiveType(hash));
 }
 
-template<typename T>
+template<typename T, std::enable_if_t<Traits::IsClass<T>::value, bool> = true>
 inline const ClassDescription& GetClass()
 {
-	static_assert(Traits::IsClass<T>::value, "T must be an class type");
 	assert(false && "Class is not reflected");
 
 	static ClassDescription invalidDesc;
@@ -71,10 +70,9 @@ inline const ClassDescription& GetClass(const char* name)
 	return GetClass(hash);
 }
 
-template<typename T>
+template<typename T, std::enable_if_t<Traits::IsEnum<T>::value, bool> = true>
 inline const EnumDescription& GetEnum()
 {
-	static_assert(Traits::IsEnum<T>::value, "T must be an enum type");
 	assert(false && "Enum is not reflected");
 
 	static EnumDescription invalidDesc;
