@@ -58,12 +58,12 @@ class ReflectionContext
     using ArrayList = std::vector<Reflection::ArrayDescription>;
 public:
     
-    explicit ReflectionContext(const std::string_view name, const std::string& qualifiedName);
+    explicit ReflectionContext(const std::string& name, const std::string& qualifiedName);
     
 	void GenerateForwardDecls(std::stringstream& ss) const;
     void GenerateMetaDescs(std::stringstream& ss) const;
 
-    ReflectionContext& EmplaceContext(const std::string_view name, const std::string& qualifiedName);
+    ReflectionContext& EmplaceContext(const std::string& name, const std::string& qualifiedName);
     
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
     ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc);

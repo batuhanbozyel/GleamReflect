@@ -3,7 +3,7 @@
 
 using namespace Gleam;
 
-ReflectionContext::ReflectionContext(const std::string_view name, const std::string& qualifiedName)
+ReflectionContext::ReflectionContext(const std::string& name, const std::string& qualifiedName)
     : mName(name)
     , mQualifiedName(qualifiedName)
 {
@@ -165,7 +165,7 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
     }
 }
 
-ReflectionContext& ReflectionContext::EmplaceContext(const std::string_view name, const std::string& qualifiedName)
+ReflectionContext& ReflectionContext::EmplaceContext(const std::string& name, const std::string& qualifiedName)
 {
 	auto it = std::find_if(mContexts.begin(), mContexts.end(), [&](const ReflectionContext& ctx)
 	{

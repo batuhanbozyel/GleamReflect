@@ -57,7 +57,7 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
 		}
         else if (const auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(decl))
         {
-			auto& namespaceCtx = context.EmplaceContext(namespaceDecl->getName(),
+			auto& namespaceCtx = context.EmplaceContext(namespaceDecl->getNameAsString(),
 														namespaceDecl->getQualifiedNameAsString());
             ParseDecls(namespaceCtx, namespaceDecl->decls());
         }
