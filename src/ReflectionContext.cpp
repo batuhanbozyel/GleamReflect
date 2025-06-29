@@ -24,12 +24,16 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
     
     // Forward declarations
     {
-        for (const auto& [guid, handle] : mGuidToEnum)
-        {
-            const auto& enumDesc = mEnums[handle];
-            ss << "enum class " << enumDesc.ResolveName() << ";\n";
-        }
-        ss << "\n";
+		if (mGuidToEnum.empty() == false)
+		{
+			for (const auto& [guid, handle] : mGuidToEnum)
+			{
+				const auto& enumDesc = mEnums[handle];
+				ss << "enum class " << enumDesc.ResolveName() << ";\n";
+			}
+			ss << "\n";
+		}
+        
         for (const auto& [guid, handle] : mGuidToClass)
         {
             const auto& classDesc = mClasses[handle];
@@ -53,8 +57,11 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
         
         for (const auto& context : mContexts)
         {
-            ss << "\n";
-            context.GenerateForwardDecls(ss);
+			if (context.Empty() == false)
+			{
+				ss << "\n";
+            	context.GenerateForwardDecls(ss);
+			}
         }
     }
     
@@ -97,13 +104,13 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 				const auto& param = templateParams[i];
 				if (param.GetType() == Reflection::MetaType::Class)
 				{
-					const auto& paramDesc = Reflection::GetClass(param.TypeHash());
-					classNameSS << paramDesc.ResolveQualifiedName();
+					const auto paramDesc = Reflection::GetClass(param.TypeHash());
+					classNameSS << paramDesc->ResolveQualifiedName();
 				}
 				else if (param.GetType() == Reflection::MetaType::Enum)
 				{
-					const auto& paramDesc = Reflection::GetEnum(param.TypeHash());
-					classNameSS << paramDesc.ResolveQualifiedName();
+					const auto paramDesc = Reflection::GetEnum(param.TypeHash());
+					classNameSS << paramDesc->ResolveQualifiedName();
 				}
 				else if (param.GetType() == Reflection::MetaType::Primitive)
 				{
@@ -137,8 +144,11 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 
     for (const auto& context : mContexts)
     {
-        ss << "\n";
-        context.GenerateMetaDescs(ss);
+		if (context.Empty() == false)
+		{
+			ss << "\n";
+			context.GenerateMetaDescs(ss);
+		}
     }
 }
 
