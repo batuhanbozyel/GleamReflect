@@ -59,12 +59,12 @@ inline const ClassDescription& GetClass()
 	return invalidDesc;
 }
 
-inline const ClassDescription& GetClass(uint32_t hash)
+inline const ClassDescription* GetClass(uint32_t hash)
 {
-    return *IDatabase::GetInstance()->GetClass(hash);
+    return IDatabase::GetInstance()->GetClass(hash);
 }
 
-inline const ClassDescription& GetClass(const char* name)
+inline const ClassDescription* GetClass(const char* name)
 {
 	auto hash = Utils::HashString(name);
 	return GetClass(hash);
@@ -79,20 +79,20 @@ inline const EnumDescription& GetEnum()
 	return invalidDesc;
 }
 
-inline const EnumDescription& GetEnum(uint32_t hash)
+inline const EnumDescription* GetEnum(uint32_t hash)
 {
-    return *IDatabase::GetInstance()->GetEnum(hash);
+    return IDatabase::GetInstance()->GetEnum(hash);
 }
 
-inline const EnumDescription& GetEnum(const char* name)
+inline const EnumDescription* GetEnum(const char* name)
 {
 	auto hash = Utils::HashString(name);
 	return GetEnum(hash);
 }
 
-inline const ArrayDescription& GetArray(uint32_t hash)
+inline const ArrayDescription* GetArray(uint32_t hash)
 {
-    return *IDatabase::GetInstance()->GetArray(hash);
+    return IDatabase::GetInstance()->GetArray(hash);
 }
 
 template<typename T>
