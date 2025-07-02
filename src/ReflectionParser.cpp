@@ -119,6 +119,7 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 	}
 
 	std::stringstream generatedCode;
+	generatedCode << "#pragma once\n";
 	generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
 	generatedCode << "#include <Reflection/Reflection.h>\n";
 	mContext.GenerateForwardDecls(generatedCode);
