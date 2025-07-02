@@ -107,4 +107,18 @@ inline constexpr const T& Get(const void* ptr)
     return *static_cast<const T*>(ptr);
 }
 
+namespace Traits {
+
+template<typename T, typename = void>
+struct IsReflected : std::false_type {};
+
+template<typename T>
+struct IsReflected<T, std::void_t<decltype(GetClass<T>()),
+									std::enable_if_t<!std::is_same_v<
+									std::decay_t<decltype(GetClass<T>())>,
+									ClassDescription>>>
+									> : std::true_type {};
+
+} // namespace Traits
+
 } // namespace Gleam::Reflection
