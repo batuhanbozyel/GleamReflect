@@ -4,6 +4,7 @@
 
 #include <clang/AST/DeclBase.h>
 
+#include <set>
 #include <filesystem>
 
 namespace clang {
@@ -39,12 +40,14 @@ private:
     
     Reflection::BufferView ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
+	std::string ExtractHeaderPath(const clang::SourceLocation& loc, clang::ASTContext& context) const;
 
 private:
 
     ReflectionContext mContext;
 	Reflection::BinaryWriter mStringWriter;
     Reflection::BinaryWriter mObjectWriter;
+	std::set<std::string> mHeaders;
 };
 
 } // namespace Gleam

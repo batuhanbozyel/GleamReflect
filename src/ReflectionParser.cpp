@@ -8,6 +8,7 @@
 
 #include <fstream>
 #include <cassert>
+#include <algorithm>
 
 using namespace Gleam;
 
@@ -123,6 +124,15 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 	generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
 	generatedCode << "#include <Reflection/Reflection.h>\n";
 	mContext.GenerateForwardDecls(generatedCode);
+	for (const auto& header : mHeaders)
+	{
+		std::filesystem::path headerPath(header);
+		std::filesystem::path relativePath = std::filesystem::relative(headerPath, headerDir);
+		std::string relativePathStr = relativePath.string();
+		std::replace(relativePathStr.begin(), relativePathStr.end(), '\\', '/');
+		//generatedCode << "#include \"" << relativePathStr << "\"\n";
+	}
+	//generatedCode << "\n";
 
 	generatedCode << "namespace Gleam::Reflection {\n\n";
 	mContext.GenerateMetaDescs(generatedCode);
@@ -243,6 +253,16 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
 		{
 			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;
 			return {};
+		}
+
+		auto headerPath = ExtractHeaderPath(enumDecl->getLocation(), enumDecl->getASTContext());
+		if (headerPath.empty() == false)
+		{
+			mHeaders.insert(headerPath);
+		}
+		else
+		{
+			std::cerr << "Failed to extract header path for " << enumDecl->getName().str() << std::endl;
 		}
 		return handle;
     }
@@ -587,6 +607,16 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
 			return {};
 		}
+
+		auto headerPath = ExtractHeaderPath(recordDecl->getLocation(), recordDecl->getASTContext());
+		if (headerPath.empty() == false)
+		{
+			mHeaders.insert(headerPath);
+		}
+		else
+		{
+			std::cerr << "Failed to extract header path for " << recordDecl->getName().str() << std::endl;
+		}
 		return handle;
     }
     return {};
@@ -707,6 +737,21 @@ Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const Reflection::Buff
 		}
 	}
     return Reflection::Attribute::Guid::InvalidGuid();
+}
+
+std::string ReflectionParser::ExtractHeaderPath(const clang::SourceLocation& loc, clang::ASTContext& context) const
+{
+	if (loc.isInvalid())
+		return "";
+
+	auto& sourceManager = context.getSourceManager();
+	auto presumedLoc = sourceManager.getPresumedLoc(loc);
+
+	if (presumedLoc.isInvalid())
+		return "";
+
+	std::string filename = presumedLoc.getFilename();
+	return filename;
 }
 
 size_t ReflectionParser::BuiltinTypeSize(const clang::BuiltinType* type) const

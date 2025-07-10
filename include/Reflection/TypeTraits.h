@@ -29,10 +29,11 @@ template<class ... TemplateArgs, template<class...> class Template>
 struct IsTemplate<Template<TemplateArgs...>> : std::true_type {};
 
 // is instance of template
-template<template<class...> class Template, class Instance>
+template<typename Instance, template<typename...> class Template>
 struct IsInstanceOfTemplate : std::false_type {};
-template<class ...TemplateArgs, template<class...> class Template>
-struct IsInstanceOfTemplate<Template, Template<TemplateArgs...> > : std::true_type {};
+
+template<typename ...TemplateArgs, template<typename...> class Template>
+struct IsInstanceOfTemplate<Template<TemplateArgs...>, Template> : std::true_type {};
 
 namespace Detail {
 
@@ -46,8 +47,8 @@ template<template<class...> class Template, class Instance, class = void>
 struct IsBaseCheckerHelper : std::true_type {};
 
 template<template<class...> class Template, class Instance>
-struct IsBaseCheckerHelper<Template, Instance, 
-    std::void_t<decltype(IsBaseChecker<Template>(std::declval<Instance*>()))>
+struct IsBaseCheckerHelper<Template, Instance,
+	std::void_t<decltype(IsBaseChecker<Template>(std::declval<Instance*>()))>
 > : decltype(IsBaseChecker<Template>(std::declval<Instance*>())) {};
 
 // SFIANE support for detecting whether the type T supports member .begin() and .end() operations. */
