@@ -51,7 +51,7 @@ inline constexpr PrimitiveDescription GetPrimitive(uint32_t hash)
 }
 
 template<typename T, std::enable_if_t<Traits::IsClass<T>::value, bool> = true>
-inline const ClassDescription& GetClass() = delete;
+inline const ClassDescription& GetClassDesc() = delete;
 
 inline const ClassDescription* GetClass(uint32_t hash)
 {
@@ -65,7 +65,7 @@ inline const ClassDescription* GetClass(const char* name)
 }
 
 template<typename T, std::enable_if_t<Traits::IsEnum<T>::value, bool> = true>
-inline const EnumDescription& GetEnum() = delete;
+inline const EnumDescription& GetEnumDesc() = delete;
 
 inline const EnumDescription* GetEnum(uint32_t hash)
 {
@@ -98,8 +98,34 @@ inline constexpr const T& Get(const void* ptr)
 namespace Traits {
 
 template<typename T, typename = void>
-concept IsReflected = requires { GetClass<T>(); } || requires { GetEnum<T>(); };
+concept IsReflected = requires { GetClassDesc<T>(); } || requires { GetEnumDesc<T>(); } || requires { GetPrimitive<T>(); };
 
 } // namespace Traits
+
+template<typename T, std::enable_if_t<Traits::IsClass<T>::value, bool> = true> requires (Traits::IsReflected<T> == true)
+inline const ClassDescription& GetClass()
+{
+	return GetClassDesc<T>();
+}
+
+template<typename T, std::enable_if_t<Traits::IsClass<T>::value, bool> = true> requires (Traits::IsReflected<T> == false)
+inline const ClassDescription& GetClass()
+{
+	static ClassDescription invalidDesc;
+	return invalidDesc;
+}
+
+template<typename T, std::enable_if_t<Traits::IsEnum<T>::value, bool> = true> requires (Traits::IsReflected<T> == true)
+inline const EnumDescription& GetEnum()
+{
+	return GetEnumDesc<T>();
+}
+
+template<typename T, std::enable_if_t<Traits::IsEnum<T>::value, bool> = true> requires (Traits::IsReflected<T> == false)
+inline const EnumDescription& GetEnum()
+{
+	static EnumDescription invalidDesc;
+	return invalidDesc;
+}
 
 } // namespace Gleam::Reflection
