@@ -30,10 +30,11 @@ public:
 						const std::filesystem::path& binaryDir);
     
 private:
-    void ParseDecls(ReflectionContext& context, const clang::DeclContext::decl_range& decls);
-    EnumHandle HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl);
-    ClassHandle HandleRecordDecl(ReflectionContext& context, const clang::CXXRecordDecl* recordDecl);
-    ArrayHandle HandleArrayType(ReflectionContext& context, const clang::ConstantArrayType* arrayType);
+    void ParseDecls(const clang::DeclContext::decl_range& decls);
+    EnumHandle HandleEnumDecl(const clang::EnumDecl* enumDecl);
+    ClassHandle HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
+    ArrayHandle HandleArrayType(const clang::ConstantArrayType* arrayType);
+	ReflectionContext& GetDeclReflectionContext(const clang::DeclContext* declContext);
     
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;

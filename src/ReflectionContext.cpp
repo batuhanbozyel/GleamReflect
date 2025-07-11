@@ -3,6 +3,26 @@
 
 using namespace Gleam;
 
+static std::string GetParentPath(const std::string& qualifiedName)
+{
+	size_t lastSeparator = qualifiedName.rfind("::");
+	if (lastSeparator == std::string::npos)
+	{
+		return "";
+	}
+	return qualifiedName.substr(0, lastSeparator);
+}
+
+static std::string GetContextName(const std::string& qualifiedName)
+{
+	size_t lastSeparator = qualifiedName.rfind("::");
+	if (lastSeparator == std::string::npos)
+	{
+		return qualifiedName;
+	}
+	return qualifiedName.substr(lastSeparator + 2);
+}
+
 ReflectionContext::ReflectionContext(const std::string& name, const std::string& qualifiedName)
     : mName(name)
     , mQualifiedName(qualifiedName)
@@ -154,15 +174,30 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 
 ReflectionContext& ReflectionContext::EmplaceContext(const std::string& name, const std::string& qualifiedName)
 {
-	auto it = std::find_if(mContexts.begin(), mContexts.end(), [&](const ReflectionContext& ctx)
+	if (QualifiedName() == qualifiedName)
 	{
-		return ctx.QualifiedName() == qualifiedName;
-	});
-	if (it != mContexts.end())
-	{
-		return *it;
+		return *this;
 	}
-	return mContexts.emplace_back(name, qualifiedName);
+
+	std::string parentPath = GetParentPath(qualifiedName);
+	std::string childName = GetContextName(qualifiedName);
+
+	if (QualifiedName() == parentPath)
+	{
+		auto it = std::find_if(mContexts.begin(), mContexts.end(), [&](const ReflectionContext& ctx)
+		{
+			return ctx.Name() == childName;
+		});
+
+		if (it != mContexts.end())
+		{
+			return *it;
+		}
+		return mContexts.emplace_back(childName, qualifiedName);
+	}
+
+	ReflectionContext& parent = EmplaceContext(GetContextName(parentPath), parentPath);
+	return parent.EmplaceContext(childName, qualifiedName);
 }
 
 ArrayHandle ReflectionContext::RegisterArray(const Reflection::ArrayDescription& arrayDesc)

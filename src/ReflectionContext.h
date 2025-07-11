@@ -79,6 +79,7 @@ public:
     const std::string_view QualifiedName() const;
     
 private:
+
     EnumMap mGuidToEnum;
     ClassMap mGuidToClass;
     

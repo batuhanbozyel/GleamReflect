@@ -20,10 +20,10 @@ ReflectionParser::ReflectionParser()
 
 void ReflectionParser::ParseAST(clang::ASTContext& context)
 {
-    ParseDecls(mContext, context.getTranslationUnitDecl()->decls());
+    ParseDecls(context.getTranslationUnitDecl()->decls());
 }
 
-void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclContext::decl_range& decls)
+void ReflectionParser::ParseDecls(const clang::DeclContext::decl_range& decls)
 {
     for (const auto decl : decls)
     {
@@ -31,14 +31,14 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
         {
             if (enumDecl->hasAttr<clang::AnnotateAttr>() && enumDecl->isCompleteDefinition())
             {
-                HandleEnumDecl(context, enumDecl);
+                HandleEnumDecl(enumDecl);
             }
         }
         else if (const auto recordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(decl))
         {
             if (recordDecl->hasAttr<clang::AnnotateAttr>() && recordDecl->isCompleteDefinition())
             {
-                HandleRecordDecl(context, recordDecl);
+                HandleRecordDecl(recordDecl);
             }
         }
 		else if (const auto templateDecl = llvm::dyn_cast<clang::ClassTemplateDecl>(decl))
@@ -46,21 +46,19 @@ void ReflectionParser::ParseDecls(ReflectionContext& context, const clang::DeclC
 			auto recordDecl = templateDecl->getTemplatedDecl();
 			if (recordDecl && recordDecl->hasAttr<clang::AnnotateAttr>() && recordDecl->isCompleteDefinition())
 			{
-				HandleRecordDecl(context, recordDecl);
+				HandleRecordDecl(recordDecl);
 			}
 		}
 		else if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(decl))
 		{
 			if (specDecl->hasAttr<clang::AnnotateAttr>() && specDecl->isCompleteDefinition())
 			{
-				HandleRecordDecl(context, specDecl);
+				HandleRecordDecl(specDecl);
 			}
 		}
         else if (const auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(decl))
         {
-			auto& namespaceCtx = context.EmplaceContext(namespaceDecl->getNameAsString(),
-														namespaceDecl->getQualifiedNameAsString());
-            ParseDecls(namespaceCtx, namespaceDecl->decls());
+            ParseDecls(namespaceDecl->decls());
         }
     }
 }
@@ -152,7 +150,7 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 	database.Shutdown();
 }
 
-EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const clang::EnumDecl* enumDecl)
+EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 {
 	if (enumDecl == nullptr)
 	{
@@ -165,8 +163,13 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
 	}
 
     auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
+	if (enumAnnotateAttr == nullptr)
+	{
+		std::cerr << enumDecl->getName().str() << " is not reflected" << std::endl;
+		return {};
+	}
+
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
-    
     if (enumAnnotation.find("GENUM") != std::string::npos)
     {
         auto attributes = ParseAttributes(enumAnnotation);
@@ -179,6 +182,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
 
 		auto nameStr = enumDecl->getName();
 		auto name = mStringWriter.Write(nameStr.data(), nameStr.size());
+		auto& context = GetDeclReflectionContext(enumDecl->getParent());
 
 		std::stringstream qualifiedNameSS;
 		qualifiedNameSS << context.QualifiedName() << "::" << std::string_view(nameStr);
@@ -269,7 +273,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(ReflectionContext& context, const cl
     return {};
 }
 
-ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const clang::CXXRecordDecl* recordDecl)
+ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recordDecl)
 {
     if (recordDecl == nullptr)
     {
@@ -282,8 +286,13 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 	}
     
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
+	if (recordAnnotateAttr == nullptr)
+	{
+		std::cerr << recordDecl->getName().str() << " is not reflected" << std::endl;
+		return {}; // No annotation attribute, skip processing
+	}
+
     auto recordAnnotation = recordAnnotateAttr->getAnnotation().str();
-    
     if (recordAnnotation.find("GCLASS") != std::string::npos || recordAnnotation.find("GSTRUCT") != std::string::npos)
     {
         auto recordAttribs = ParseAttributes(recordAnnotation);
@@ -293,13 +302,13 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 			std::cerr << recordDecl->getName().str() << " is missing GUID attribute" << std::endl;
 			return {};
 		}
-
 		auto& astContext = recordDecl->getASTContext();
 		auto recordType = astContext.getRecordType(recordDecl);
 		size_t classSize = 0;
 
 		auto classNameStr = recordDecl->getName();
 		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
+		auto& context = GetDeclReflectionContext(recordDecl->getParent());
 
 		std::stringstream qualifiedClassNameSS;
 		qualifiedClassNameSS << context.QualifiedName() << "::" << std::string_view(classNameStr);
@@ -342,7 +351,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 						const auto argRecordType = argType->getAs<clang::RecordType>();
 						const auto argRecordDecl = argRecordType->getAsCXXRecordDecl();
 
-						auto argClassHandle = HandleRecordDecl(context, argRecordDecl);
+						auto argClassHandle = HandleRecordDecl(argRecordDecl);
 						if (argClassHandle != InvalidMetaIndex)
 						{
 							templateParamDescs.emplace_back(Reflection::MetaType::Class, argClassHandle);
@@ -353,7 +362,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 						const auto argEnumType = argType->getAs<clang::EnumType>();
 						const auto argEnumDecl = argEnumType->getDecl();
 
-						auto argEnumHandle = HandleEnumDecl(context, argEnumDecl);
+						auto argEnumHandle = HandleEnumDecl(argEnumDecl);
 						if (argEnumHandle != InvalidMetaIndex)
 						{
 							templateParamDescs.emplace_back(Reflection::MetaType::Enum, argEnumHandle);
@@ -375,7 +384,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
             const auto baseRecord = base.getType()->getAsCXXRecordDecl();
             if (baseRecord && baseRecord->hasAttr<clang::AnnotateAttr>() && baseRecord->isCompleteDefinition())
             {
-                auto baseHandle = HandleRecordDecl(context, baseRecord);
+                auto baseHandle = HandleRecordDecl(baseRecord);
                 if (baseHandle != InvalidMetaIndex)
                 {
                     baseClasses.emplace_back(baseHandle);
@@ -424,7 +433,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
                     if (arrayType->isConstantArrayType())
                     {
 						fieldMetaType = Reflection::MetaType::Array;
-						fieldHash = HandleArrayType(context, static_cast<const clang::ConstantArrayType*>(arrayType));
+						fieldHash = HandleArrayType(static_cast<const clang::ConstantArrayType*>(arrayType));
 						if (fieldHash == 0)
 						{
 							std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
@@ -451,7 +460,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 						continue;
 					}
                     
-					auto fieldHandle = HandleRecordDecl(context, fieldDecl);
+					auto fieldHandle = HandleRecordDecl(fieldDecl);
 					if (fieldHandle == InvalidMetaIndex)
 					{
 						std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
@@ -482,7 +491,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 									const auto argRecordType = argType->getAs<clang::RecordType>();
 									const auto argRecordDecl = argRecordType->getAsCXXRecordDecl();
 
-									auto argClassHandle = HandleRecordDecl(context, argRecordDecl);
+									auto argClassHandle = HandleRecordDecl(argRecordDecl);
 									if (argClassHandle != InvalidMetaIndex)
 									{
 										fieldTemplateParamDescs.emplace_back(Reflection::MetaType::Class, argClassHandle);
@@ -493,7 +502,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 									const auto argEnumType = argType->getAs<clang::EnumType>();
 									const auto argEnumDecl = argEnumType->getDecl();
 
-									auto argEnumHandle = HandleEnumDecl(context, argEnumDecl);
+									auto argEnumHandle = HandleEnumDecl(argEnumDecl);
 									if (argEnumHandle != InvalidMetaIndex)
 									{
 										fieldTemplateParamDescs.emplace_back(Reflection::MetaType::Enum, argEnumHandle);
@@ -524,7 +533,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
 						continue;
 					}
 
-					auto fieldHandle = HandleEnumDecl(context, enumDecl);
+					auto fieldHandle = HandleEnumDecl(enumDecl);
 					if (fieldHandle == InvalidMetaIndex)
 					{
 						std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
@@ -622,7 +631,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(ReflectionContext& context, const
     return {};
 }
 
-ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const clang::ConstantArrayType* arrayType)
+ArrayHandle ReflectionParser::HandleArrayType(const clang::ConstantArrayType* arrayType)
 {
     if (arrayType == nullptr)
     {
@@ -635,49 +644,75 @@ ArrayHandle ReflectionParser::HandleArrayType(ReflectionContext& context, const 
     if (elementType->isConstantArrayType())
     {
         const auto innerArrayType = static_cast<const clang::ConstantArrayType*>(elementType->getAsArrayTypeUnsafe());
-        const auto innerArrayHandle = HandleArrayType(context, innerArrayType);
+        const auto innerArrayHandle = HandleArrayType(innerArrayType);
         if (innerArrayHandle == InvalidMetaIndex)
         {
             return {};
         }
 
-        const auto& innerArrayDesc = context.mArrays[innerArrayHandle];
+        const auto& innerArrayDesc = mContext.mArrays[innerArrayHandle];
         Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Array, innerArrayHandle, arraySize);
-    	return context.RegisterArray(arrayDesc);
+    	return mContext.RegisterArray(arrayDesc);
     }
     else if (elementType->isRecordType())
     {
         const auto recordType = elementType->getAs<clang::RecordType>();
-        const auto classHandle = HandleRecordDecl(context, recordType->getAsCXXRecordDecl());
+        const auto classHandle = HandleRecordDecl(recordType->getAsCXXRecordDecl());
         if (classHandle == InvalidMetaIndex)
         {
             return {};
         }
 
-        const auto& classDesc = context.mClasses[classHandle];
+        const auto& classDesc = mContext.mClasses[classHandle];
         Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Class, classDesc.TypeHash(), arraySize);
-    	return context.RegisterArray(arrayDesc);
+    	return mContext.RegisterArray(arrayDesc);
     }
     else if (elementType->isEnumeralType())
     {
         const clang::EnumType* enumType = elementType->getAs<clang::EnumType>();
-        const auto enumHandle = HandleEnumDecl(context, enumType->getDecl());
+        const auto enumHandle = HandleEnumDecl(enumType->getDecl());
         if (enumHandle == InvalidMetaIndex)
         {
             return {};
         }
 
-        const auto& enumDesc = context.mEnums[enumHandle];
+        const auto& enumDesc = mContext.mEnums[enumHandle];
 		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Enum, enumDesc.TypeHash(), arraySize);
-    	return context.RegisterArray(arrayDesc);
+    	return mContext.RegisterArray(arrayDesc);
     }
     else if (elementType->isBuiltinType())
     {
         const auto builtinType = elementType->getAs<clang::BuiltinType>();
 		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Primitive, BuiltinTypeHash(builtinType), arraySize);
-    	return context.RegisterArray(arrayDesc);
+    	return mContext.RegisterArray(arrayDesc);
 	}
 	return {};
+}
+
+ReflectionContext& ReflectionParser::GetDeclReflectionContext(const clang::DeclContext* declContext)
+{
+	if (declContext == nullptr)
+	{
+		return mContext;
+	}
+
+	while (declContext)
+	{
+		if (const auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(declContext))
+		{
+			std::string namespaceName = namespaceDecl->getNameAsString();
+			std::string namespaceQualifiedName = namespaceDecl->getQualifiedNameAsString();
+
+			size_t idx = namespaceQualifiedName.find("Gleam::Reflection::External::");
+			if (idx != std::string::npos)
+			{
+				namespaceQualifiedName = namespaceQualifiedName.substr(idx + std::strlen("Gleam::Reflection::External::"));
+			}
+			return mContext.EmplaceContext(namespaceName, namespaceQualifiedName);
+		}
+		declContext = declContext->getParent();
+	}
+	return mContext;
 }
 
 Reflection::BufferView ReflectionParser::ParseAttributes(const std::string& annotation)
