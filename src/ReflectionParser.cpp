@@ -38,7 +38,14 @@ void ReflectionParser::ParseDecls(const clang::DeclContext::decl_range& decls)
         {
             if (recordDecl->hasAttr<clang::AnnotateAttr>() && recordDecl->isCompleteDefinition())
             {
-                HandleRecordDecl(recordDecl);
+				if (recordDecl->getName() == "basic_string" || recordDecl->getName() == "vector")
+				{
+					HandleRecordDecl(recordDecl);
+				}
+				else
+				{
+					HandleRecordDecl(recordDecl);
+				}
             }
         }
 		else if (const auto templateDecl = llvm::dyn_cast<clang::ClassTemplateDecl>(decl))
@@ -335,7 +342,9 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		}
 		else if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(recordDecl); specDecl != nullptr)
 		{
-			if (specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitInstantiationDefinition || specDecl->getTemplateSpecializationKind() == clang::TSK_ImplicitInstantiation)
+			if (specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitInstantiationDefinition
+				|| specDecl->getTemplateSpecializationKind() == clang::TSK_ImplicitInstantiation
+				|| specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitSpecialization)
 			{
 				const auto& args = specDecl->getTemplateInstantiationArgs();
 				for (const auto& arg : args.asArray())
