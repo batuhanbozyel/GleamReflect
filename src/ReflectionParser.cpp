@@ -38,14 +38,7 @@ void ReflectionParser::ParseDecls(const clang::DeclContext::decl_range& decls)
         {
             if (recordDecl->hasAttr<clang::AnnotateAttr>() && recordDecl->isCompleteDefinition())
             {
-				if (recordDecl->getName() == "basic_string" || recordDecl->getName() == "vector")
-				{
-					HandleRecordDecl(recordDecl);
-				}
-				else
-				{
-					HandleRecordDecl(recordDecl);
-				}
+				HandleRecordDecl(recordDecl);
             }
         }
 		else if (const auto templateDecl = llvm::dyn_cast<clang::ClassTemplateDecl>(decl))
@@ -335,6 +328,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
         }
 
 		// Process template parameters
+		std::string templateDeclStr;
 		std::vector<Reflection::TemplateParameterDescription> templateParamDescs;
 		if (const auto templateDecl = recordDecl->getDescribedClassTemplate(); templateDecl != nullptr)
 		{
@@ -378,6 +372,17 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 						}
 					}
 				}
+				llvm::raw_string_ostream templateDeclOS(templateDeclStr);
+				templateDeclOS << "template<";
+
+				const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
+				const auto templateParams = specializedTemplateDecl->getTemplateParameters();
+				for (unsigned i = 0; i < templateParams->size(); ++i)
+				{
+					if (i > 0) templateDeclOS << ", ";
+					templateParams->getParam(i)->print(templateDeclOS, specializedTemplateDecl->getASTContext().getLangOpts());
+				}
+				templateDeclOS << ">";
 			}
 			else
 			{
@@ -619,7 +624,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams));
+		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDeclStr);
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;

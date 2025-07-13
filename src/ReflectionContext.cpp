@@ -59,18 +59,7 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
             const auto& classDesc = mClasses[handle];
 			if (classDesc.IsTemplate())
 			{
-				auto templateParams = classDesc.ResolveTemplateParameters();
-
-				ss << "template<";
-				for (size_t i = 0; i < templateParams.size(); ++i)
-				{
-					ss << "typename T" << i;
-					if (i != templateParams.size() - 1)
-					{
-						ss << ", ";
-					}
-				}
-				ss << ">\n";
+				ss << mTemplateDeclarations[handle] << "\n";
 			}
 			ss << "class " << classDesc.ResolveName() << ";\n";
         }
@@ -207,7 +196,7 @@ ArrayHandle ReflectionContext::RegisterArray(const Reflection::ArrayDescription&
     return ArrayHandle(index);
 }
 
-ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc)
+ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc, const std::string& templateDecl)
 {
     auto it = mGuidToClass.find(classDesc.Guid());
     if (it != mGuidToClass.end())
@@ -219,6 +208,7 @@ ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription&
     uint32_t index = static_cast<uint32_t>(mClasses.size());
     mGuidToClass.emplace_hint(mGuidToClass.end(), classDesc.Guid(), index);
     mClasses.emplace_back(classDesc);
+	mTemplateDeclarations.emplace_back(templateDecl);
     return ClassHandle(index);
 }
 
