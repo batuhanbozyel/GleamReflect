@@ -15,6 +15,7 @@ class EnumDecl;
 class ConstantArrayType;
 class BuiltinType;
 class TemplateParameterList;
+class ClassTemplateSpecializationDecl;
 } // namespace clang
 
 namespace Gleam {
@@ -38,10 +39,12 @@ private:
     
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;
-    
+
     Reflection::BufferView ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
 	std::string ExtractHeaderPath(const clang::SourceLocation& loc, clang::ASTContext& context) const;
+	std::string ExtractTemplateDeclaration(const clang::ClassTemplateSpecializationDecl* specDecl) const;
+	std::string ExtractTemplateParameter(const clang::NamedDecl* param, const clang::PrintingPolicy& policy) const;
 
 private:
 

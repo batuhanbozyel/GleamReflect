@@ -373,20 +373,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 					}
 				}
 				
-				const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
-				const auto templateParams = specializedTemplateDecl->getTemplateParameters();
-
-				clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
-				policy.SuppressDefaultTemplateArgs = true;
-
 				llvm::raw_string_ostream templateDeclOS(templateDeclStr);
-				templateDeclOS << "template<";
-				for (unsigned i = 0; i < templateParams->size(); ++i)
-				{
-					if (i > 0) templateDeclOS << ", ";
-					templateParams->getParam(i)->print(templateDeclOS, policy);
-				}
-				templateDeclOS << ">";
+				templateDeclOS << "template<" << ExtractTemplateDeclaration(specDecl) << ">";
 			}
 			else
 			{
@@ -805,6 +793,65 @@ std::string ReflectionParser::ExtractHeaderPath(const clang::SourceLocation& loc
 
 	std::string filename = presumedLoc.getFilename();
 	return filename;
+}
+
+std::string ReflectionParser::ExtractTemplateDeclaration(const clang::ClassTemplateSpecializationDecl* specDecl) const
+{
+	std::string decl;
+
+	const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
+	const auto templateParams = specializedTemplateDecl->getTemplateParameters();
+
+	clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
+	policy.SuppressDefaultTemplateArgs = true;
+
+	llvm::raw_string_ostream templateDeclOS(decl);
+	templateDeclOS << "template<";
+
+	for (unsigned i = 0; i < templateParams->size(); ++i)
+	{
+		if (i > 0) templateDeclOS << ", ";
+
+		auto param = templateParams->getParam(i);
+		templateDeclOS << ExtractTemplateParameter(param, policy);
+	}
+	templateDeclOS << ">";
+
+	return decl;
+}
+
+std::string ReflectionParser::ExtractTemplateParameter(const clang::NamedDecl* param, const clang::PrintingPolicy& policy) const
+{
+	std::string name;
+	llvm::raw_string_ostream nameOS(name);
+
+	if (auto typeParam = llvm::dyn_cast<clang::TemplateTypeParmDecl>(param))
+	{
+		if (typeParam->wasDeclaredWithTypename())
+			nameOS << "typename ";
+		else
+			nameOS << "class ";
+		nameOS << typeParam->getName();
+	}
+	else if (auto nonTypeParam = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(param))
+	{
+		nonTypeParam->getType().print(nameOS, policy);
+		nameOS << " " << nonTypeParam->getName();
+	}
+	else if (auto templateTemplateParam = llvm::dyn_cast<clang::TemplateTemplateParmDecl>(param))
+	{
+		nameOS << "template<";
+		auto innerParams = templateTemplateParam->getTemplateParameters();
+		for (unsigned j = 0; j < innerParams->size(); ++j)
+		{
+			if (j > 0) nameOS << ", ";
+
+			auto innerParam = innerParams->getParam(j);
+			ExtractTemplateParameter(innerParam, policy);
+		}
+		nameOS << "> class " << templateTemplateParam->getName();
+	}
+	return name;
 }
 
 size_t ReflectionParser::BuiltinTypeSize(const clang::BuiltinType* type) const
