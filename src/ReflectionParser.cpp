@@ -372,9 +372,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 						}
 					}
 				}
-				
-				llvm::raw_string_ostream templateDeclOS(templateDeclStr);
-				templateDeclOS << "template<" << ExtractTemplateDeclaration(specDecl) << ">";
+				templateDeclStr = ExtractTemplateDeclaration(specDecl);
 			}
 			else
 			{
