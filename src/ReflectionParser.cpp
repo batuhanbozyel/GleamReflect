@@ -372,15 +372,19 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 						}
 					}
 				}
-				llvm::raw_string_ostream templateDeclOS(templateDeclStr);
-				templateDeclOS << "template<";
-
+				
 				const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
 				const auto templateParams = specializedTemplateDecl->getTemplateParameters();
+
+				clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
+				policy.SuppressDefaultTemplateArgs = true;
+
+				llvm::raw_string_ostream templateDeclOS(templateDeclStr);
+				templateDeclOS << "template<";
 				for (unsigned i = 0; i < templateParams->size(); ++i)
 				{
 					if (i > 0) templateDeclOS << ", ";
-					templateParams->getParam(i)->print(templateDeclOS, specializedTemplateDecl->getASTContext().getLangOpts());
+					templateParams->getParam(i)->print(templateDeclOS, policy);
 				}
 				templateDeclOS << ">";
 			}
