@@ -64,7 +64,7 @@ public:
 	void GenerateForwardDecls(std::stringstream& ss) const;
     void GenerateMetaDescs(std::stringstream& ss) const;
 
-    ReflectionContext& EmplaceContext(const std::string& name, const std::string& qualifiedName);
+    ReflectionContext& EmplaceContext(const std::string& qualifiedName);
     
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
     ArrayHandle RegisterArray(const Reflection::ArrayDescription& arrayDesc);

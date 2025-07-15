@@ -161,7 +161,7 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
     }
 }
 
-ReflectionContext& ReflectionContext::EmplaceContext(const std::string& name, const std::string& qualifiedName)
+ReflectionContext& ReflectionContext::EmplaceContext(const std::string& qualifiedName)
 {
 	if (QualifiedName() == qualifiedName)
 	{
@@ -185,8 +185,8 @@ ReflectionContext& ReflectionContext::EmplaceContext(const std::string& name, co
 		return mContexts.emplace_back(childName, qualifiedName);
 	}
 
-	ReflectionContext& parent = EmplaceContext(GetContextName(parentPath), parentPath);
-	return parent.EmplaceContext(childName, qualifiedName);
+	ReflectionContext& parent = EmplaceContext(parentPath);
+	return parent.EmplaceContext(qualifiedName);
 }
 
 ArrayHandle ReflectionContext::RegisterArray(const Reflection::ArrayDescription& arrayDesc)

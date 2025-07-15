@@ -165,7 +165,26 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
     auto enumAnnotateAttr = enumDecl->getAttr<clang::AnnotateAttr>();
 	if (enumAnnotateAttr == nullptr)
 	{
-		std::cerr << enumDecl->getName().str() << " is not reflected" << std::endl;
+		std::string name = enumDecl->getNameAsString();
+		std::string qualifiedName = enumDecl->getQualifiedNameAsString();
+
+		size_t idx = qualifiedName.find("Gleam::Reflection::External::");
+		if (idx != std::string::npos)
+		{
+			qualifiedName = qualifiedName.substr(idx + std::strlen("Gleam::Reflection::External::"));
+		}
+		uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
+
+		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
+		auto& externalContext = mContext.EmplaceContext(namespaceName);
+		for (const auto& [guid, handle] : externalContext.mGuidToEnum)
+		{
+			const auto& enumDesc = mContext.mEnums[handle];
+			if (enumDesc.TypeHash() == typeHash)
+			{
+				return handle;
+			}
+		}
 		return {};
 	}
 
@@ -288,7 +307,26 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
 	if (recordAnnotateAttr == nullptr)
 	{
-		std::cerr << recordDecl->getName().str() << " is not reflected" << std::endl;
+		std::string name = recordDecl->getNameAsString();
+		std::string qualifiedName = recordDecl->getQualifiedNameAsString();
+
+		size_t idx = qualifiedName.find("Gleam::Reflection::External::");
+		if (idx != std::string::npos)
+		{
+			qualifiedName = qualifiedName.substr(idx + std::strlen("Gleam::Reflection::External::"));
+		}
+		uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
+
+		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
+		auto& externalContext = mContext.EmplaceContext(namespaceName);
+		for (const auto& [guid, handle] : externalContext.mGuidToClass)
+		{
+			const auto& classDesc = mContext.mClasses[handle];
+			if (classDesc.TypeHash() == typeHash)
+			{
+				return handle;
+			}
+		}
 		return {}; // No annotation attribute, skip processing
 	}
 
@@ -458,12 +496,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
                     const clang::RecordType* recordType = fieldType->getAs<clang::RecordType>();
 					const clang::CXXRecordDecl* fieldDecl = recordType->getAsCXXRecordDecl();
 
-					if (fieldDecl->hasAttr<clang::AnnotateAttr>() == false)
-					{
-						std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
-						continue;
-					}
-                    
 					auto fieldHandle = HandleRecordDecl(fieldDecl);
 					if (fieldHandle == InvalidMetaIndex)
 					{
@@ -530,12 +562,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
                 {
                     const clang::EnumType* enumType = fieldType->getAs<clang::EnumType>();
 					const clang::EnumDecl* enumDecl = enumType->getDecl();
-
-					if (enumDecl->hasAttr<clang::AnnotateAttr>() == false)
-					{
-						std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
-						continue;
-					}
 
 					auto fieldHandle = HandleEnumDecl(enumDecl);
 					if (fieldHandle == InvalidMetaIndex)
@@ -712,7 +738,7 @@ ReflectionContext& ReflectionParser::GetDeclReflectionContext(const clang::DeclC
 			{
 				namespaceQualifiedName = namespaceQualifiedName.substr(idx + std::strlen("Gleam::Reflection::External::"));
 			}
-			return mContext.EmplaceContext(namespaceName, namespaceQualifiedName);
+			return mContext.EmplaceContext(namespaceQualifiedName);
 		}
 		declContext = declContext->getParent();
 	}

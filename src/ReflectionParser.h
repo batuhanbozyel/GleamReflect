@@ -35,6 +35,7 @@ private:
     EnumHandle HandleEnumDecl(const clang::EnumDecl* enumDecl);
     ClassHandle HandleRecordDecl(const clang::CXXRecordDecl* recordDecl);
     ArrayHandle HandleArrayType(const clang::ConstantArrayType* arrayType);
+
 	ReflectionContext& GetDeclReflectionContext(const clang::DeclContext* declContext);
     
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
@@ -49,9 +50,9 @@ private:
 private:
 
     ReflectionContext mContext;
+	std::set<std::string> mHeaders;
 	Reflection::BinaryWriter mStringWriter;
     Reflection::BinaryWriter mObjectWriter;
-	std::set<std::string> mHeaders;
 };
 
 } // namespace Gleam
