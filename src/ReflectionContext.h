@@ -53,7 +53,6 @@ class ReflectionContext
     using EnumMap = std::unordered_map<Reflection::Attribute::Guid, EnumHandle>;
     using ClassMap = std::unordered_map<Reflection::Attribute::Guid, ClassHandle>;
 
-	using TemplateDeclList = std::vector<std::string>;
     using EnumList = std::vector<Reflection::EnumDescription>;
     using ClassList = std::vector<Reflection::ClassDescription>;
     using ArrayList = std::vector<Reflection::ArrayDescription>;
@@ -68,7 +67,7 @@ public:
     
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
     ArrayHandle RegisterArray(const Reflection::ArrayDescription& arrayDesc);
-    ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc, const std::string& templateDecl);
+    ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc);
     
     EnumHandle GetEnumHandle(const Reflection::Attribute::Guid& guid) const;
     ClassHandle GetClassHandle(const Reflection::Attribute::Guid& guid) const;
@@ -91,7 +90,6 @@ private:
 	static inline EnumList mEnums = {};
 	static inline ClassList mClasses = {};
 	static inline ArrayList mArrays = {};
-	static inline TemplateDeclList mTemplateDeclarations;
 };
 
 } // namespace Gleam

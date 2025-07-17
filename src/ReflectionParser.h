@@ -51,6 +51,7 @@ private:
 
     ReflectionContext mContext;
 	std::set<std::string> mHeaders;
+	std::set<std::string> mTemplateHeaders;
 	Reflection::BinaryWriter mStringWriter;
     Reflection::BinaryWriter mObjectWriter;
 };

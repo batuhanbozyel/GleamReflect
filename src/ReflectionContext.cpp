@@ -59,7 +59,7 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
             const auto& classDesc = mClasses[handle];
 			if (classDesc.IsTemplate())
 			{
-				ss << mTemplateDeclarations[handle] << "\n";
+				continue;
 			}
 			ss << "class " << classDesc.ResolveName() << ";\n";
         }
@@ -94,7 +94,7 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 		ss << "inline const EnumDescription& GetEnumDesc<" << mQualifiedName << "::" << enumDesc.ResolveName() << ">()\n";
 		ss << "{\n";
 		ss << "\tstatic const auto enums = IDatabase::GetInstance()->GetEnums();\n";
-		ss << "\treturn enums[" << handle << "]; \n";
+		ss << "\treturn enums[" << handle << "];\n";
 		ss << "}\n\n";
 	}
 
@@ -147,7 +147,7 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
         ss << "inline const ClassDescription& GetClassDesc<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
         ss << "{\n";
         ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
-        ss << "\treturn classes[" << handle << "]; \n";
+        ss << "\treturn classes[" << handle << "];\n";
         ss << "}\n\n";
     }
 
@@ -196,7 +196,7 @@ ArrayHandle ReflectionContext::RegisterArray(const Reflection::ArrayDescription&
     return ArrayHandle(index);
 }
 
-ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc, const std::string& templateDecl)
+ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc)
 {
     auto it = mGuidToClass.find(classDesc.Guid());
     if (it != mGuidToClass.end())
@@ -208,7 +208,6 @@ ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription&
     uint32_t index = static_cast<uint32_t>(mClasses.size());
     mGuidToClass.emplace_hint(mGuidToClass.end(), classDesc.Guid(), index);
     mClasses.emplace_back(classDesc);
-	mTemplateDeclarations.emplace_back(templateDecl);
     return ClassHandle(index);
 }
 

@@ -121,16 +121,17 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 	generatedCode << "#pragma once\n";
 	generatedCode << "#ifndef __GLEAM_REFLECTION__\n";
 	generatedCode << "#include <Reflection/Reflection.h>\n";
-	mContext.GenerateForwardDecls(generatedCode);
-	for (const auto& header : mHeaders)
+
+	for (const auto& header : mTemplateHeaders)
 	{
 		std::filesystem::path headerPath(header);
 		std::filesystem::path relativePath = std::filesystem::relative(headerPath, headerDir);
 		std::string relativePathStr = relativePath.string();
 		std::replace(relativePathStr.begin(), relativePathStr.end(), '\\', '/');
-		//generatedCode << "#include \"" << relativePathStr << "\"\n";
+		generatedCode << "#include \"" << relativePathStr << "\"\n";
 	}
-	//generatedCode << "\n";
+	generatedCode << "\n";
+	mContext.GenerateForwardDecls(generatedCode);
 
 	generatedCode << "namespace Gleam::Reflection {\n\n";
 	mContext.GenerateMetaDescs(generatedCode);
@@ -640,7 +641,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDeclStr);
+		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams));
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
@@ -651,6 +652,10 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		if (headerPath.empty() == false)
 		{
 			mHeaders.insert(headerPath);
+			if (templateDeclStr.empty() == false)
+			{
+				mTemplateHeaders.insert(headerPath);
+			}
 		}
 		else
 		{
@@ -828,7 +833,7 @@ std::string ReflectionParser::ExtractTemplateDeclaration(const clang::ClassTempl
 
 	std::string qualifiedName = specializedTemplateDecl->getQualifiedNameAsString();
 	clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
-	policy.SuppressDefaultTemplateArgs = qualifiedName.find("std::") == 0;
+	policy.SuppressDefaultTemplateArgs = true;
 
 	llvm::raw_string_ostream templateDeclOS(decl);
 	templateDeclOS << "template<";
