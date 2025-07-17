@@ -826,8 +826,9 @@ std::string ReflectionParser::ExtractTemplateDeclaration(const clang::ClassTempl
 	const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
 	const auto templateParams = specializedTemplateDecl->getTemplateParameters();
 
+	std::string qualifiedName = specializedTemplateDecl->getQualifiedNameAsString();
 	clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
-	policy.SuppressDefaultTemplateArgs = true;
+	policy.SuppressDefaultTemplateArgs = qualifiedName.find("std::") == 0;
 
 	llvm::raw_string_ostream templateDeclOS(decl);
 	templateDeclOS << "template<";
