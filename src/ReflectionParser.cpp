@@ -852,29 +852,15 @@ std::string ReflectionParser::ExtractTemplateParameter(const clang::NamedDecl* p
 
 	if (auto typeParam = llvm::dyn_cast<clang::TemplateTypeParmDecl>(param))
 	{
-		if (typeParam->wasDeclaredWithTypename())
-			nameOS << "typename ";
-		else
-			nameOS << "class ";
-		nameOS << typeParam->getName();
+		typeParam->print(nameOS, policy);
 	}
 	else if (auto nonTypeParam = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(param))
 	{
 		nonTypeParam->getType().print(nameOS, policy);
-		nameOS << " " << nonTypeParam->getName();
 	}
 	else if (auto templateTemplateParam = llvm::dyn_cast<clang::TemplateTemplateParmDecl>(param))
 	{
-		nameOS << "template<";
-		auto innerParams = templateTemplateParam->getTemplateParameters();
-		for (unsigned j = 0; j < innerParams->size(); ++j)
-		{
-			if (j > 0) nameOS << ", ";
-
-			auto innerParam = innerParams->getParam(j);
-			ExtractTemplateParameter(innerParam, policy);
-		}
-		nameOS << "> class " << templateTemplateParam->getName();
+		templateTemplateParam->print(nameOS, policy);
 	}
 	return name;
 }
