@@ -8,6 +8,11 @@
 #include <cassert>
 #include <variant>
 
+namespace Gleam {
+class ReflectionParser;
+class ReflectionContext;
+} // namespace Gleam
+
 namespace Gleam::Reflection {
 
 enum class MetaType
@@ -141,6 +146,8 @@ private:
 
 class MetaDescription
 {
+	friend class ReflectionParser;
+	friend class ReflectionContext;
 public:
 
 	MetaDescription() = default;
@@ -239,9 +246,8 @@ public:
 
 	FieldDescription() = default;
     
-	FieldDescription(const MetaDescription& meta, const BufferView& templateParams, size_t offset, size_t size, MetaType type)
+	FieldDescription(const MetaDescription& meta, size_t offset, size_t size, MetaType type)
         : MetaDescription(meta)
-		, mTemplateParams(templateParams)
 		, mOffset(offset)
 		, mSize(size)
 		, mType(type)
@@ -263,24 +269,12 @@ public:
     {
         return mType;
     }
-
-	auto ResolveTemplateParameters() const
-	{
-		const auto ptr = IDatabase::GetInstance()->GetObject<TemplateParameterDescription>(mTemplateParams);
-		return DenseArrayView{ ptr, mTemplateParams.size / sizeof(TemplateParameterDescription) };
-	}
-
-	bool IsTemplate() const
-	{
-		return mTemplateParams.size > 0;
-	}
     
 private:
     
     size_t mSize = 0;
     size_t mOffset = 0;
     MetaType mType = MetaType::Invalid;
-	BufferView mTemplateParams = {};
 };
 
 class EnumCaseDescription : public MetaDescription
@@ -339,6 +333,8 @@ private:
 
 class ClassDescription : public MetaDescription
 {
+	friend class ReflectionParser;
+	friend class ReflectionContext;
 public:
     
 	ClassDescription() = default;
@@ -365,7 +361,7 @@ public:
 		auto indices = DenseArrayView{ ptr, mBaseClasses.size / sizeof(BufferView) };
         auto classes = IDatabase::GetInstance()->GetClasses();
         return SparseArrayView{ classes.data(), indices };
-    }
+	}
 
 	auto ResolveTemplateParameters() const
 	{

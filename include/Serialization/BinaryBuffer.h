@@ -7,6 +7,16 @@ struct BufferView
 {
     size_t offset = 0;
     size_t size = 0;
+
+	bool operator==(const BufferView& other) const
+	{
+		return offset == other.offset && size == other.size;
+	}
+
+	bool operator!=(const BufferView& other) const
+	{
+		return !(*this == other);
+	}
 };
 
 struct BinaryBuffer

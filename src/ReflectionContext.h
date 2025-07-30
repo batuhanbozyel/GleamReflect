@@ -1,6 +1,7 @@
 #pragma once
 #include "Reflection/Meta.h"
 
+#include <span>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -51,14 +52,16 @@ class ReflectionContext
     friend class ReflectionParser;
     
     using EnumMap = std::unordered_map<Reflection::Attribute::Guid, EnumHandle>;
-    using ClassMap = std::unordered_map<Reflection::Attribute::Guid, ClassHandle>;
+    using ClassMap = std::unordered_map<Reflection::Attribute::Guid, std::vector<ClassHandle>>;
 
     using EnumList = std::vector<Reflection::EnumDescription>;
     using ClassList = std::vector<Reflection::ClassDescription>;
     using ArrayList = std::vector<Reflection::ArrayDescription>;
+	using ClassTemplateDeclList = std::vector<std::string>;
+	using TypeHashMap = std::unordered_map<uint32_t, uint32_t>;
 public:
     
-    explicit ReflectionContext(const std::string& name, const std::string& qualifiedName);
+    explicit ReflectionContext(const ReflectionParser* parser, const std::string& name, const std::string& qualifiedName);
     
 	void GenerateForwardDecls(std::stringstream& ss) const;
     void GenerateMetaDescs(std::stringstream& ss) const;
@@ -67,10 +70,10 @@ public:
     
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
     ArrayHandle RegisterArray(const Reflection::ArrayDescription& arrayDesc);
-    ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc);
+    ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc, const std::string& templateDecl);
     
     EnumHandle GetEnumHandle(const Reflection::Attribute::Guid& guid) const;
-    ClassHandle GetClassHandle(const Reflection::Attribute::Guid& guid) const;
+    std::span<const ClassHandle> GetClassHandles(const Reflection::Attribute::Guid& guid) const;
     
 	bool Empty() const;
     bool Contains(const Reflection::Attribute::Guid& guid) const;
@@ -86,10 +89,13 @@ private:
     std::string mName;
     std::string mQualifiedName;
     std::vector<ReflectionContext> mContexts;
+	const ReflectionParser* mParser = nullptr;
     
 	static inline EnumList mEnums = {};
 	static inline ClassList mClasses = {};
 	static inline ArrayList mArrays = {};
+	static inline TypeHashMap mTypeHashMap = {};
+	static inline ClassTemplateDeclList mClassTemplateDecls = {};
 };
 
 } // namespace Gleam

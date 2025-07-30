@@ -13,7 +13,7 @@
 using namespace Gleam;
 
 ReflectionParser::ReflectionParser()
-    : mContext("", "") // global namespace
+    : mContext(this, "", "") // global namespace
 {
     
 }
@@ -214,7 +214,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedNameStr.c_str());
 		size_t enumSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
 
-		if (const auto enumHandle = context.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
+		if (const auto enumHandle = mContext.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
 		{
 			if (typeHash == mContext.mEnums[enumHandle].TypeHash())
 			{
@@ -304,6 +304,11 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 	{
 		return {}; // Invalid declaration, skip processing
 	}
+
+	if (recordDecl->getDescribedClassTemplate() != nullptr)
+	{
+		return {}; // Template declarations are not supported yet
+	}
     
     auto recordAnnotateAttr = recordDecl->getAttr<clang::AnnotateAttr>();
 	if (recordAnnotateAttr == nullptr)
@@ -320,12 +325,27 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 
 		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
 		auto& externalContext = mContext.EmplaceContext(namespaceName);
-		for (const auto& [guid, handle] : externalContext.mGuidToClass)
+		for (const auto& [guid, classes] : externalContext.mGuidToClass)
 		{
-			const auto& classDesc = mContext.mClasses[handle];
-			if (classDesc.TypeHash() == typeHash)
+			const auto& registeredClassDesc = mContext.mClasses[classes[0]];
+			auto registeredName = ResolveString(registeredClassDesc.mName);
+			if (registeredName == name)
 			{
-				return handle;
+				for (const auto handle : classes)
+				{
+					const auto& classDesc = mContext.mClasses[handle];
+					if (classDesc.TypeHash() == typeHash)
+					{
+						return handle;
+					}
+				}
+				auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);
+				auto templateDef = ExtractTemplateDefinition(templateParamDescs);
+				auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
+				auto qualifiedNameView = mStringWriter.Write(qualifiedName.c_str(), qualifiedName.length());
+				return externalContext.RegisterClass(Reflection::ClassDescription(
+					{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
+					registeredClassDesc.mSize, registeredClassDesc.mFields, registeredClassDesc.mBaseClasses, templateParams), templateDef);
 			}
 		}
 		return {}; // No annotation attribute, skip processing
@@ -343,7 +363,10 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		}
 		auto& astContext = recordDecl->getASTContext();
 		auto recordType = astContext.getRecordType(recordDecl);
-		size_t classSize = 0;
+
+		// Process template parameters
+		auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);
+		auto templateDef = ExtractTemplateDefinition(templateParamDescs);
 
 		auto classNameStr = recordDecl->getName();
 		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
@@ -352,74 +375,36 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		std::stringstream qualifiedClassNameSS;
 		qualifiedClassNameSS << context.QualifiedName() << "::" << std::string_view(classNameStr);
 
+		if (templateDef.empty() == false)
+		{
+			qualifiedClassNameSS << "<" << templateDef << ">";
+		}
+
 		auto qualifiedClassNameStr = qualifiedClassNameSS.str();
 		auto qualifiedClassName = mStringWriter.Write(qualifiedClassNameStr.data(), qualifiedClassNameStr.size());
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedClassNameStr.c_str());
-        
-        if (const auto classHandle = context.GetClassHandle(recordGuid); classHandle != InvalidMetaIndex)
-        {
-			if (typeHash == mContext.mClasses[classHandle].TypeHash())
-			{
-				return classHandle; // already processed
-			}
-			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
-			return {};
-        }
 
-		// Process template parameters
-		std::string templateDeclStr;
-		std::vector<Reflection::TemplateParameterDescription> templateParamDescs;
-		if (const auto templateDecl = recordDecl->getDescribedClassTemplate(); templateDecl != nullptr)
+		auto classHandles = mContext.GetClassHandles(recordGuid);
+		if (classHandles.size() > 0)
 		{
-			return {}; // Template declarations are not supported yet
-		}
-		else if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(recordDecl); specDecl != nullptr)
-		{
-			if (specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitInstantiationDefinition
-				|| specDecl->getTemplateSpecializationKind() == clang::TSK_ImplicitInstantiation
-				|| specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitSpecialization)
+			auto registeredClassName = ResolveString(mContext.mClasses[classHandles[0]].mQualifiedName);
+			if (QualifiedNameWithoutTemplateDeclaration(registeredClassName) == QualifiedNameWithoutTemplateDeclaration(qualifiedClassNameStr))
 			{
-				const auto& args = specDecl->getTemplateInstantiationArgs();
-				for (const auto& arg : args.asArray())
+				for (const auto handle : classHandles)
 				{
-					auto argType = arg.getAsType();
-					if (argType->isBuiltinType())
+					if (typeHash == mContext.mClasses[handle].TypeHash())
 					{
-						const auto argBuiltinType = argType->getAs<clang::BuiltinType>();
-						templateParamDescs.emplace_back(Reflection::MetaType::Primitive, BuiltinTypeHash(argBuiltinType));
-					}
-					else if (argType->isRecordType())
-					{
-						const auto argRecordType = argType->getAs<clang::RecordType>();
-						const auto argRecordDecl = argRecordType->getAsCXXRecordDecl();
-
-						auto argClassHandle = HandleRecordDecl(argRecordDecl);
-						if (argClassHandle != InvalidMetaIndex)
-						{
-							templateParamDescs.emplace_back(Reflection::MetaType::Class, argClassHandle);
-						}
-					}
-					else if (argType->isEnumeralType())
-					{
-						const auto argEnumType = argType->getAs<clang::EnumType>();
-						const auto argEnumDecl = argEnumType->getDecl();
-
-						auto argEnumHandle = HandleEnumDecl(argEnumDecl);
-						if (argEnumHandle != InvalidMetaIndex)
-						{
-							templateParamDescs.emplace_back(Reflection::MetaType::Enum, argEnumHandle);
-						}
+						return handle; // already processed
 					}
 				}
-				templateDeclStr = ExtractTemplateDeclaration(specDecl);
 			}
 			else
 			{
-				return {}; // Template partial specialization reflection is not supported yet
+				std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
+				return {};
 			}
 		}
-		classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
-
+		
         // Process bases
 		std::vector<ClassHandle> baseClasses;
         for (const auto& base : recordDecl->bases())
@@ -466,8 +451,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 				std::vector<Reflection::TemplateParameterDescription> fieldTemplateParamDescs;
                 Reflection::MetaType fieldMetaType = Reflection::MetaType::Invalid;
                 uint32_t fieldHash = 0;
-				size_t fieldOffset = 0;
-				size_t fieldSize = 0;
                 
                 clang::QualType fieldType = field->getType();
                 if (fieldType->isArrayType())
@@ -482,9 +465,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 							std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
 							continue;
 						}
-
-						fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
-						fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
                     }
 					else
 					{
@@ -506,58 +486,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 
 					fieldMetaType = Reflection::MetaType::Class;
 					fieldHash = mContext.mClasses[fieldHandle].TypeHash();
-
-					if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(fieldDecl))
-					{
-						if (specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitInstantiationDefinition || specDecl->getTemplateSpecializationKind() == clang::TSK_ImplicitInstantiation)
-						{
-							fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
-							fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
-
-							const auto& args = specDecl->getTemplateInstantiationArgs();
-							for (const auto& arg : args.asArray())
-							{
-								auto argType = arg.getAsType();
-								if (argType->isBuiltinType())
-								{
-									const auto argBuiltinType = argType->getAs<clang::BuiltinType>();
-									fieldTemplateParamDescs.emplace_back(Reflection::MetaType::Primitive, BuiltinTypeHash(argBuiltinType));
-								}
-								else if (argType->isRecordType())
-								{
-									const auto argRecordType = argType->getAs<clang::RecordType>();
-									const auto argRecordDecl = argRecordType->getAsCXXRecordDecl();
-
-									auto argClassHandle = HandleRecordDecl(argRecordDecl);
-									if (argClassHandle != InvalidMetaIndex)
-									{
-										fieldTemplateParamDescs.emplace_back(Reflection::MetaType::Class, argClassHandle);
-									}
-								}
-								else if (argType->isEnumeralType())
-								{
-									const auto argEnumType = argType->getAs<clang::EnumType>();
-									const auto argEnumDecl = argEnumType->getDecl();
-
-									auto argEnumHandle = HandleEnumDecl(argEnumDecl);
-									if (argEnumHandle != InvalidMetaIndex)
-									{
-										fieldTemplateParamDescs.emplace_back(Reflection::MetaType::Enum, argEnumHandle);
-									}
-								}
-							}
-						}
-						else
-						{
-							std::cerr << "Template specialization kind reflection is not supported yet for field " << recordDecl->getName().str() << "::" << field->getName().str() << std::endl;
-							continue;
-						}
-					}
-					else
-					{
-						fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
-						fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
-					}
                 }
                 else if (fieldType->isEnumeralType())
                 {
@@ -576,8 +504,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
                     
 					fieldMetaType = Reflection::MetaType::Enum;
 					fieldHash = mContext.mEnums[fieldHandle].TypeHash();
-					fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
-					fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
                 }
                 else if (fieldType->isBuiltinType())
                 {
@@ -585,8 +511,6 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
                     
 					fieldMetaType = Reflection::MetaType::Primitive;
 					fieldHash = BuiltinTypeHash(builtinType);
-					fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
-					fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
                 }
                 else
                 {
@@ -594,6 +518,10 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 					std::cerr << recordDecl->getName().str() << "::" << field->getName().str() << " is not reflected" << std::endl;
                     continue;
                 }
+
+				size_t fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
+				size_t fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
+
 				auto fieldNameStr = field->getName();
 				auto fieldName = mStringWriter.Write(fieldNameStr.data(), fieldNameStr.size());
 
@@ -602,8 +530,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 
 				auto fieldQualifiedNameStr = fieldQualifiedNameSS.str();
 				auto fieldQualifiedName = mStringWriter.Write(fieldQualifiedNameStr.data(), fieldQualifiedNameStr.size());
-				auto fieldTemplateParams = mObjectWriter.Write(fieldTemplateParamDescs.data(), fieldTemplateParamDescs.size());
-                fieldDescs.emplace_back(Reflection::FieldDescription({ fieldName, fieldQualifiedName, fieldAttribs, fieldGuid, fieldHash }, fieldTemplateParams, fieldOffset, fieldSize, fieldMetaType));
+                fieldDescs.emplace_back(Reflection::FieldDescription({ fieldName, fieldQualifiedName, fieldAttribs, fieldGuid, fieldHash }, fieldOffset, fieldSize, fieldMetaType));
             }
         }
         
@@ -637,11 +564,12 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
                 // TODO: function reflection support
             }
         }
-        
+
+		size_t classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams));
+		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDef);
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
@@ -652,7 +580,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		if (headerPath.empty() == false)
 		{
 			mHeaders.insert(headerPath);
-			if (templateDeclStr.empty() == false)
+			if (templateParamDescs.empty() == false)
 			{
 				mTemplateHeaders.insert(headerPath);
 			}
@@ -824,29 +752,28 @@ std::string ReflectionParser::ExtractHeaderPath(const clang::SourceLocation& loc
 	return filename;
 }
 
-std::string ReflectionParser::ExtractTemplateDeclaration(const clang::ClassTemplateSpecializationDecl* specDecl) const
+std::string ReflectionParser::ExtractTemplateDeclaration(const clang::CXXRecordDecl* recordDecl) const
 {
 	std::string decl;
 
-	const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
-	const auto templateParams = specializedTemplateDecl->getTemplateParameters();
-
-	std::string qualifiedName = specializedTemplateDecl->getQualifiedNameAsString();
-	clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
-	policy.SuppressDefaultTemplateArgs = true;
-
-	llvm::raw_string_ostream templateDeclOS(decl);
-	templateDeclOS << "template<";
-
-	for (unsigned i = 0; i < templateParams->size(); ++i)
+	if (const auto specDecl = GetTemplateSpecilization(recordDecl); specDecl != nullptr)
 	{
-		if (i > 0) templateDeclOS << ", ";
+		const auto specializedTemplateDecl = specDecl->getSpecializedTemplate();
+		const auto templateParams = specializedTemplateDecl->getTemplateParameters();
 
-		auto param = templateParams->getParam(i);
-		templateDeclOS << ExtractTemplateParameter(param, policy);
+		std::string qualifiedName = specializedTemplateDecl->getQualifiedNameAsString();
+		clang::PrintingPolicy policy = specializedTemplateDecl->getASTContext().getLangOpts();
+		policy.SuppressDefaultTemplateArgs = true;
+
+		llvm::raw_string_ostream templateDeclOS(decl);
+		for (unsigned i = 0; i < templateParams->size(); ++i)
+		{
+			if (i > 0) templateDeclOS << ", ";
+
+			auto param = templateParams->getParam(i);
+			templateDeclOS << ExtractTemplateParameter(param, policy);
+		}
 	}
-	templateDeclOS << ">";
-
 	return decl;
 }
 
@@ -868,6 +795,82 @@ std::string ReflectionParser::ExtractTemplateParameter(const clang::NamedDecl* p
 		templateTemplateParam->print(nameOS, policy);
 	}
 	return name;
+}
+
+std::vector<Reflection::TemplateParameterDescription> ReflectionParser::ExtractTemplateParameterDescriptions(const clang::CXXRecordDecl* recordDecl)
+{
+	std::vector<Reflection::TemplateParameterDescription> templateParamDescs;
+	if (const auto specDecl = GetTemplateSpecilization(recordDecl); specDecl != nullptr)
+	{
+		const auto& args = specDecl->getTemplateInstantiationArgs();
+		for (const auto& arg : args.asArray())
+		{
+			auto argType = arg.getAsType();
+			if (argType->isBuiltinType())
+			{
+				const auto argBuiltinType = argType->getAs<clang::BuiltinType>();
+				templateParamDescs.emplace_back(Reflection::MetaType::Primitive, BuiltinTypeHash(argBuiltinType));
+			}
+			else if (argType->isRecordType())
+			{
+				const auto argRecordType = argType->getAs<clang::RecordType>();
+				const auto argRecordDecl = argRecordType->getAsCXXRecordDecl();
+
+				auto argClassHandle = HandleRecordDecl(argRecordDecl);
+				if (argClassHandle != InvalidMetaIndex)
+				{
+					templateParamDescs.emplace_back(Reflection::MetaType::Class, argClassHandle);
+				}
+			}
+			else if (argType->isEnumeralType())
+			{
+				const auto argEnumType = argType->getAs<clang::EnumType>();
+				const auto argEnumDecl = argEnumType->getDecl();
+
+				auto argEnumHandle = HandleEnumDecl(argEnumDecl);
+				if (argEnumHandle != InvalidMetaIndex)
+				{
+					templateParamDescs.emplace_back(Reflection::MetaType::Enum, argEnumHandle);
+				}
+			}
+		}
+	}
+	return templateParamDescs;
+}
+
+std::string ReflectionParser::ExtractTemplateDefinition(const std::vector<Reflection::TemplateParameterDescription>& parameters) const
+{
+	std::stringstream definitionSS;
+	for (size_t i = 0; i < parameters.size(); ++i)
+	{
+		const auto& param = parameters[i];
+		if (param.GetType() == Reflection::MetaType::Class)
+		{
+			const auto& paramDesc = mContext.mClasses[mContext.mTypeHashMap[param.TypeHash()]];
+			definitionSS << ResolveString(paramDesc.mQualifiedName);
+		}
+		else if (param.GetType() == Reflection::MetaType::Enum)
+		{
+			const auto& paramDesc = mContext.mEnums[mContext.mTypeHashMap[param.TypeHash()]];
+			definitionSS << ResolveString(paramDesc.mQualifiedName);
+		}
+		else if (param.GetType() == Reflection::MetaType::Primitive)
+		{
+			auto paramDesc = Reflection::PrimitiveDescription(static_cast<Reflection::PrimitiveType>(param.TypeHash()));
+			definitionSS << paramDesc.ResolveName();
+		}
+		else
+		{
+			continue; // Unsupported type
+		}
+
+		if (i != parameters.size() - 1)
+		{
+			definitionSS << ", ";
+		}
+	}
+	std::string definiton = definitionSS.str();
+	return definiton;
 }
 
 size_t ReflectionParser::BuiltinTypeSize(const clang::BuiltinType* type) const
@@ -949,6 +952,37 @@ uint32_t ReflectionParser::BuiltinTypeHash(const clang::BuiltinType* type) const
         default:
             return static_cast<uint32_t>(Reflection::PrimitiveType::Invalid);
     }
+}
+
+const clang::ClassTemplateSpecializationDecl* ReflectionParser::GetTemplateSpecilization(const clang::CXXRecordDecl* recordDecl) const
+{
+	if (const auto specDecl = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(recordDecl); specDecl != nullptr)
+	{
+		if (specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitInstantiationDefinition
+			|| specDecl->getTemplateSpecializationKind() == clang::TSK_ImplicitInstantiation
+			|| specDecl->getTemplateSpecializationKind() == clang::TSK_ExplicitSpecialization)
+		{
+			return specDecl;
+		}
+	}
+	return nullptr;
+}
+
+bool ReflectionParser::InstanceOfSameType(const Reflection::ClassDescription& lhs, const Reflection::ClassDescription& rhs) const
+{
+	auto lhsQualifiedName = ResolveString(lhs.mQualifiedName);
+	auto rhsQualifiedName = ResolveString(rhs.mQualifiedName);
+	return QualifiedNameWithoutTemplateDeclaration(lhsQualifiedName) == QualifiedNameWithoutTemplateDeclaration(rhsQualifiedName);
+}
+
+std::string_view ReflectionParser::QualifiedNameWithoutTemplateDeclaration(const std::string_view name) const
+{
+	size_t template_start = name.find_first_of('<');
+	if (template_start == std::string_view::npos)
+	{
+		return name;
+	}
+	return name.substr(0, template_start);
 }
 
 REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Guid);

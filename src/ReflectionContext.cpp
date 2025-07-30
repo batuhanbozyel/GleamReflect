@@ -1,4 +1,5 @@
 #include "ReflectionContext.h"
+#include "ReflectionParser.h"
 #include "Reflection/Reflection.h"
 
 using namespace Gleam;
@@ -23,9 +24,10 @@ static std::string GetContextName(const std::string& qualifiedName)
 	return qualifiedName.substr(lastSeparator + 2);
 }
 
-ReflectionContext::ReflectionContext(const std::string& name, const std::string& qualifiedName)
+ReflectionContext::ReflectionContext(const ReflectionParser* parser, const std::string& name, const std::string& qualifiedName)
     : mName(name)
     , mQualifiedName(qualifiedName)
+	, mParser(parser)
 {
     
 }
@@ -54,14 +56,17 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 			ss << "\n";
 		}
         
-        for (const auto& [guid, handle] : mGuidToClass)
+        for (const auto& [guid, classes] : mGuidToClass)
         {
-            const auto& classDesc = mClasses[handle];
-			if (classDesc.IsTemplate())
+			for (const auto handle : classes)
 			{
-				continue;
+				const auto& classDesc = mClasses[handle];
+				if (classDesc.IsTemplate())
+				{
+					continue;
+				}
+				ss << "class " << classDesc.ResolveName() << ";\n";
 			}
-			ss << "class " << classDesc.ResolveName() << ";\n";
         }
         
         for (const auto& context : mContexts)
@@ -98,58 +103,28 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 		ss << "}\n\n";
 	}
 
-    for (const auto& [guid, handle] : mGuidToClass)
+    for (const auto& [guid, classes] : mGuidToClass)
     {
-        const auto& classDesc = mClasses[handle];
-
-		std::stringstream classNameSS;
-		if (classDesc.IsTemplate())
+		for (const auto handle : classes)
 		{
-			auto templateParams = classDesc.ResolveTemplateParameters();
+			const auto& classDesc = mClasses[handle];
 
-			classNameSS << classDesc.ResolveName() << "<";
-			for (size_t i = 0; i < templateParams.size(); ++i)
-			{
-				const auto& param = templateParams[i];
-				if (param.GetType() == Reflection::MetaType::Class)
-				{
-					const auto paramDesc = Reflection::GetClass(param.TypeHash());
-					classNameSS << paramDesc->ResolveQualifiedName();
-				}
-				else if (param.GetType() == Reflection::MetaType::Enum)
-				{
-					const auto paramDesc = Reflection::GetEnum(param.TypeHash());
-					classNameSS << paramDesc->ResolveQualifiedName();
-				}
-				else if (param.GetType() == Reflection::MetaType::Primitive)
-				{
-					auto paramDesc = Reflection::PrimitiveDescription(static_cast<Reflection::PrimitiveType>(param.TypeHash()));
-					classNameSS << paramDesc.ResolveName();
-				}
-				else
-				{
-					continue; // Unsupported type
-				}
-
-				if (i != templateParams.size() - 1)
-				{
-					classNameSS << ", ";
-				}
-			}
-			classNameSS << ">";
-		}
-		else
-		{
+			std::stringstream classNameSS;
 			classNameSS << classDesc.ResolveName();
-		}
 
-        ss << "template<>\n";
-        ss << "inline const ClassDescription& GetClassDesc<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
-        ss << "{\n";
-        ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
-        ss << "\treturn classes[" << handle << "];\n";
-        ss << "}\n\n";
-    }
+			if (classDesc.IsTemplate())
+			{
+				classNameSS << "<" << mClassTemplateDecls[handle] << ">";
+			}
+
+			ss << "template<>\n";
+			ss << "inline const ClassDescription& GetClassDesc<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
+			ss << "{\n";
+			ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
+			ss << "\treturn classes[" << handle << "];\n";
+			ss << "}\n\n";
+		}
+	}
 
     for (const auto& context : mContexts)
     {
@@ -182,7 +157,7 @@ ReflectionContext& ReflectionContext::EmplaceContext(const std::string& qualifie
 		{
 			return *it;
 		}
-		return mContexts.emplace_back(childName, qualifiedName);
+		return mContexts.emplace_back(mParser, childName, qualifiedName);
 	}
 
 	ReflectionContext& parent = EmplaceContext(parentPath);
@@ -196,18 +171,29 @@ ArrayHandle ReflectionContext::RegisterArray(const Reflection::ArrayDescription&
     return ArrayHandle(index);
 }
 
-ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc)
+ClassHandle ReflectionContext::RegisterClass(const Reflection::ClassDescription& classDesc, const std::string& templateDecl)
 {
     auto it = mGuidToClass.find(classDesc.Guid());
     if (it != mGuidToClass.end())
     {
+		for (const auto handle : it->second)
+		{
+			if (mParser->InstanceOfSameType(mClasses[handle], classDesc))
+			{
+				goto REGISTER_CLASS;
+			}
+		}
         // ASSERT duplicate guid
         return {};
     }
-    
+
+REGISTER_CLASS:
     uint32_t index = static_cast<uint32_t>(mClasses.size());
-    mGuidToClass.emplace_hint(mGuidToClass.end(), classDesc.Guid(), index);
+	auto& guidToClass = mGuidToClass[classDesc.Guid()];
+	guidToClass.emplace_back(index);
     mClasses.emplace_back(classDesc);
+	mClassTemplateDecls.emplace_back(templateDecl);
+	mTypeHashMap.emplace_hint(mTypeHashMap.end(), classDesc.TypeHash(), index);
     return ClassHandle(index);
 }
 
@@ -221,27 +207,28 @@ EnumHandle ReflectionContext::RegisterEnum(const Reflection::EnumDescription& en
     }
     
     uint32_t index = static_cast<uint32_t>(mEnums.size());
+	mTypeHashMap.emplace_hint(mTypeHashMap.end(), enumDesc.TypeHash(), index);
     mGuidToEnum.emplace_hint(mGuidToEnum.end(), enumDesc.Guid(), index);
     mEnums.emplace_back(enumDesc);
     return EnumHandle(index);
 }
 
-ClassHandle ReflectionContext::GetClassHandle(const Reflection::Attribute::Guid& guid) const
+std::span<const ClassHandle> ReflectionContext::GetClassHandles(const Reflection::Attribute::Guid& guid) const
 {
     auto it = mGuidToClass.find(guid);
     if (it == mGuidToClass.end())
     {
         for (const auto& context : mContexts)
         {
-            auto handle = context.GetClassHandle(guid);
-            if (handle.index < mClasses.size())
-            {
-                return handle;
-            }
+            const auto& handles = context.GetClassHandles(guid);
+			if (handles.size() > 0)
+			{
+				return handles;
+			}
         }
-        return ClassHandle(InvalidMetaIndex);
+		return {};
     }
-    return it->second;
+    return std::span{ it->second.data(), it->second.size() };
 }
 
 EnumHandle ReflectionContext::GetEnumHandle(const Reflection::Attribute::Guid& guid) const

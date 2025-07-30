@@ -29,6 +29,8 @@ public:
     void GenerateOutput(const std::string& moduleName,
 						const std::filesystem::path& headerDir, 
 						const std::filesystem::path& binaryDir);
+
+	bool InstanceOfSameType(const Reflection::ClassDescription& lhs, const Reflection::ClassDescription& rhs) const;
     
 private:
     void ParseDecls(const clang::DeclContext::decl_range& decls);
@@ -37,6 +39,7 @@ private:
     ArrayHandle HandleArrayType(const clang::ConstantArrayType* arrayType);
 
 	ReflectionContext& GetDeclReflectionContext(const clang::DeclContext* declContext);
+	const clang::ClassTemplateSpecializationDecl* GetTemplateSpecilization(const clang::CXXRecordDecl* recordDecl) const;
     
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;
@@ -44,8 +47,33 @@ private:
     Reflection::BufferView ParseAttributes(const std::string& annotation);
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
 	std::string ExtractHeaderPath(const clang::SourceLocation& loc, clang::ASTContext& context) const;
-	std::string ExtractTemplateDeclaration(const clang::ClassTemplateSpecializationDecl* specDecl) const;
+	std::string ExtractTemplateDeclaration(const clang::CXXRecordDecl* recordDecl) const;
 	std::string ExtractTemplateParameter(const clang::NamedDecl* param, const clang::PrintingPolicy& policy) const;
+	std::string ExtractTemplateDefinition(const std::vector<Reflection::TemplateParameterDescription>& parameters) const;
+	std::vector<Reflection::TemplateParameterDescription> ExtractTemplateParameterDescriptions(const clang::CXXRecordDecl* recordDecl);
+
+	template<typename T>
+	const T* ResolveObject(const Reflection::BufferView& view) const
+	{
+		const auto& buffer = mObjectWriter.GetBuffer();
+		if ((view.offset + view.size) > buffer.size)
+		{
+			return nullptr;
+		}
+		return Reflection::Utils::OffsetPointer<T>(buffer.data, view.offset);
+	}
+
+	std::string_view ResolveString(const Reflection::BufferView& view) const
+	{
+		const auto& buffer = mStringWriter.GetBuffer();
+		if ((view.offset + view.size) > buffer.size)
+		{
+			return {};
+		}
+		return std::string_view(Reflection::Utils::OffsetPointer<char>(buffer.data, view.offset), view.size);
+	}
+
+	std::string_view QualifiedNameWithoutTemplateDeclaration(const std::string_view name) const;
 
 private:
 
