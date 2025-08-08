@@ -321,27 +321,25 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		{
 			qualifiedName = qualifiedName.substr(idx + std::strlen("Gleam::Reflection::External::"));
 		}
-		uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
-
+		
 		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
 		auto& externalContext = mContext.EmplaceContext(namespaceName);
 		for (const auto& [guid, classes] : externalContext.mGuidToClass)
 		{
 			const auto& registeredClassDesc = mContext.mClasses[classes[0]];
-			auto registeredName = ResolveString(registeredClassDesc.mName);
-			if (registeredName == name)
+			auto registeredName = ResolveString(registeredClassDesc.mQualifiedName);
+			if (QualifiedNameWithoutTemplateDeclaration(registeredName) == QualifiedNameWithoutTemplateDeclaration(qualifiedName))
 			{
-				for (const auto handle : classes)
-				{
-					const auto& classDesc = mContext.mClasses[handle];
-					if (classDesc.TypeHash() == typeHash)
-					{
-						return handle;
-					}
-				}
 				auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);
 				auto templateDef = ExtractTemplateDefinition(templateParamDescs);
 				auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
+
+				if (templateDef.empty() == false)
+				{
+					qualifiedName.append("<").append(templateDef).append(">");
+				}
+				uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
+
 				auto qualifiedNameView = mStringWriter.Write(qualifiedName.c_str(), qualifiedName.length());
 				return externalContext.RegisterClass(Reflection::ClassDescription(
 					{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
@@ -819,7 +817,8 @@ std::vector<Reflection::TemplateParameterDescription> ReflectionParser::ExtractT
 				auto argClassHandle = HandleRecordDecl(argRecordDecl);
 				if (argClassHandle != InvalidMetaIndex)
 				{
-					templateParamDescs.emplace_back(Reflection::MetaType::Class, argClassHandle);
+					const auto typeHash = mContext.mClasses[argClassHandle].TypeHash();
+					templateParamDescs.emplace_back(Reflection::MetaType::Class, typeHash);
 				}
 			}
 			else if (argType->isEnumeralType())
@@ -830,7 +829,8 @@ std::vector<Reflection::TemplateParameterDescription> ReflectionParser::ExtractT
 				auto argEnumHandle = HandleEnumDecl(argEnumDecl);
 				if (argEnumHandle != InvalidMetaIndex)
 				{
-					templateParamDescs.emplace_back(Reflection::MetaType::Enum, argEnumHandle);
+					const auto typeHash = mContext.mEnums[argEnumHandle].TypeHash();
+					templateParamDescs.emplace_back(Reflection::MetaType::Enum, typeHash);
 				}
 			}
 		}
