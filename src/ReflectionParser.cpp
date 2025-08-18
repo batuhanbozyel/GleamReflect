@@ -340,6 +340,15 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 				}
 				uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
 
+				auto classHandles = mContext.GetClassHandles(guid);
+				for (const auto handle : classHandles)
+				{
+					if (typeHash == mContext.mClasses[handle].TypeHash())
+					{
+						return handle; // already processed
+					}
+				}
+
 				auto qualifiedNameView = mStringWriter.Write(qualifiedName.c_str(), qualifiedName.length());
 				return externalContext.RegisterClass(Reflection::ClassDescription(
 					{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
