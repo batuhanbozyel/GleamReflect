@@ -242,8 +242,6 @@ EnumHandle ReflectionContext::RegisterEnum(const Reflection::EnumDescription& en
 
 ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash) const
 {
-	// Since type hash uses qualified name
-	// we only need to look for the current context if it exists
 	{
 		std::lock_guard guard(mClassMutex);
 		for (const auto& [guid, handles] : mGuidToClass)
@@ -258,6 +256,16 @@ ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash) const
 			}
 		}
 	}
+
+	for (const auto context : mContexts)
+	{
+		auto handle = context->GetClassHandle(typeHash);
+		if (handle != InvalidMetaIndex)
+		{
+			return handle;
+		}
+	}
+
 	return ClassHandle(InvalidMetaIndex);
 }
 
@@ -301,8 +309,6 @@ std::span<const ClassHandle> ReflectionContext::GetClassHandles(const Reflection
 
 EnumHandle ReflectionContext::GetEnumHandle(uint32_t typeHash) const
 {
-	// Since type hash uses qualified name
-	// we only need to look for the current context if it exists
 	{
 		std::lock_guard guard(mEnumMutex);
 		for (const auto& [guid, handle] : mGuidToEnum)
@@ -314,6 +320,16 @@ EnumHandle ReflectionContext::GetEnumHandle(uint32_t typeHash) const
 			}
 		}
 	}
+
+	for (const auto context : mContexts)
+	{
+		auto handle = context->GetEnumHandle(typeHash);
+		if (handle != InvalidMetaIndex)
+		{
+			return handle;
+		}
+	}
+
 	return EnumHandle(InvalidMetaIndex);
 }
 
@@ -405,8 +421,6 @@ const Reflection::EnumDescription& ReflectionContext::GetEnum(EnumHandle handle)
 
 const Reflection::EnumDescription& ReflectionContext::GetEnum(uint32_t typeHash) const
 {
-	// Since type hash uses qualified name
-	// we only need to look for the current context if it exists
 	{
 		std::lock_guard guard(mEnumMutex);
 		for (const auto& [guid, handle] : mGuidToEnum)
@@ -418,6 +432,16 @@ const Reflection::EnumDescription& ReflectionContext::GetEnum(uint32_t typeHash)
 			}
 		}
 	}
+
+	for (const auto context : mContexts)
+	{
+		const auto& enumDesc = context->GetEnum(typeHash);
+		if (enumDesc.TypeHash() != 0)
+		{
+			return enumDesc;
+		}
+	}
+
 	static Reflection::EnumDescription invalidDesc;
 	return invalidDesc;
 }
@@ -431,8 +455,6 @@ const Reflection::ClassDescription& ReflectionContext::GetClass(ClassHandle hand
 
 const Reflection::ClassDescription& ReflectionContext::GetClass(uint32_t typeHash) const
 {
-	// Since type hash uses qualified name
-	// we only need to look for the current context if it exists
 	{
 		std::lock_guard guard(mClassMutex);
 		for (const auto& [guid, handles] : mGuidToClass)
@@ -447,6 +469,16 @@ const Reflection::ClassDescription& ReflectionContext::GetClass(uint32_t typeHas
 			}
 		}
 	}
+
+	for (const auto context : mContexts)
+	{
+		const auto& classDesc = context->GetClass(typeHash);
+		if (classDesc.TypeHash() != 0)
+		{
+			return classDesc;
+		}
+	}
+
 	static Reflection::ClassDescription invalidDesc;
 	return invalidDesc;
 }

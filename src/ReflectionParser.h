@@ -36,6 +36,7 @@ public:
 	template<typename T>
 	const T* ResolveObject(const Reflection::BufferView& view) const
 	{
+		std::lock_guard guard(mWriterMutex);
 		const auto& buffer = mObjectWriter.GetBuffer();
 		if ((view.offset + view.size) > buffer.size)
 		{
@@ -46,6 +47,7 @@ public:
 
 	std::string_view ResolveString(const Reflection::BufferView& view) const
 	{
+		std::lock_guard guard(mWriterMutex);
 		const auto& buffer = mStringWriter.GetBuffer();
 		if ((view.offset + view.size) > buffer.size)
 		{
@@ -80,7 +82,7 @@ private:
 	std::set<std::string> mHeaders;
 	std::set<std::string> mTemplateHeaders;
 
-	std::mutex mWriterMutex;
+	mutable std::recursive_mutex mWriterMutex;
 	Reflection::BinaryWriter mStringWriter;
     Reflection::BinaryWriter mObjectWriter;
 };
