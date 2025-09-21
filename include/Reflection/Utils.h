@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include <functional>
 
 namespace Gleam::Reflection::Utils {

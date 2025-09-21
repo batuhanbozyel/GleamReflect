@@ -72,18 +72,22 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
     {
 		std::ofstream file(databaseFile, std::ios::out | std::ios::trunc | std::ios::binary);
 
+		const auto& enums = ReflectionContext::GetEnums();
+		const auto& classes = ReflectionContext::GetClasses();
+		const auto& arrays = ReflectionContext::GetArrays();
+
 		size_t bufferSize = sizeof(Reflection::DatabaseHeader)
 			+ mObjectWriter.GetBuffer().size
-			+ mContext.mClasses.size() * sizeof(Reflection::ClassDescription)
-			+ mContext.mEnums.size() * sizeof(Reflection::EnumDescription)
+			+ classes.size() * sizeof(Reflection::ClassDescription)
+			+ enums.size() * sizeof(Reflection::EnumDescription)
 			+ mStringWriter.GetBuffer().size;
 
         Reflection::BinaryWriter writer(bufferSize);
 		Reflection::DatabaseHeader header = {};
         header.version = GLEAM_REFLECTION_VERSION;
-        header.classCount = static_cast<uint32_t>(mContext.mClasses.size());
-        header.enumCount = static_cast<uint32_t>(mContext.mEnums.size());
-		header.arrayCount = static_cast<uint32_t>(mContext.mArrays.size());
+        header.classCount = static_cast<uint32_t>(classes.size());
+        header.enumCount = static_cast<uint32_t>(enums.size());
+		header.arrayCount = static_cast<uint32_t>(arrays.size());
 		memcpy(header.magic, "GLEAMREF", sizeof(header.magic));
         writer.Write(header);
 
@@ -92,13 +96,13 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
         
         auto serializedHeader = static_cast<Reflection::DatabaseHeader*>(writer.GetBuffer().data);
         serializedHeader->classTableOffset = writer.GetCursor();
-        writer.Write(mContext.mClasses.data(), mContext.mClasses.size() * sizeof(Reflection::ClassDescription));
+        writer.Write(classes.data(), classes.size() * sizeof(Reflection::ClassDescription));
         
         serializedHeader->enumTableOffset = writer.GetCursor();
-        writer.Write(mContext.mEnums.data(), mContext.mEnums.size() * sizeof(Reflection::EnumDescription));
+        writer.Write(enums.data(), enums.size() * sizeof(Reflection::EnumDescription));
 
 		serializedHeader->arrayTableOffset = writer.GetCursor();
-		writer.Write(mContext.mArrays.data(), mContext.mArrays.size() * sizeof(Reflection::ArrayDescription));
+		writer.Write(arrays.data(), arrays.size() * sizeof(Reflection::ArrayDescription));
 
 		const auto& stringBuffer = mStringWriter.GetBuffer();
 		serializedHeader->stringTableOffset = writer.GetCursor();
@@ -177,16 +181,8 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
 
 		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
-		auto& externalContext = mContext.EmplaceContext(namespaceName);
-		for (const auto& [guid, handle] : externalContext.mGuidToEnum)
-		{
-			const auto& enumDesc = mContext.mEnums[handle];
-			if (enumDesc.TypeHash() == typeHash)
-			{
-				return handle;
-			}
-		}
-		return {};
+		auto externalContext = mContext.EmplaceContext(namespaceName);
+		return externalContext->GetEnumHandle(typeHash);
 	}
 
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
@@ -201,14 +197,11 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 		}
 
 		auto nameStr = enumDecl->getName();
-		auto name = mStringWriter.Write(nameStr.data(), nameStr.size());
-		auto& context = GetDeclReflectionContext(enumDecl->getParent());
+		auto context = GetDeclReflectionContext(enumDecl->getParent());
 
 		std::stringstream qualifiedNameSS;
-		qualifiedNameSS << context.QualifiedName() << "::" << std::string_view(nameStr);
-
+		qualifiedNameSS << context->QualifiedName() << "::" << std::string_view(nameStr);
 		auto qualifiedNameStr = qualifiedNameSS.str();
-		auto qualifiedName = mStringWriter.Write(qualifiedNameStr.data(), qualifiedNameStr.size());
 
 		auto& astContext = enumDecl->getASTContext();
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedNameStr.c_str());
@@ -216,7 +209,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 
 		if (const auto enumHandle = mContext.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
 		{
-			if (typeHash == mContext.mEnums[enumHandle].TypeHash())
+			if (typeHash == mContext.GetEnum(enumHandle).TypeHash())
 			{
 				return enumHandle; // already processed
 			}
@@ -251,11 +244,12 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 					return {};
 				}
 
+				std::lock_guard guard(mWriterMutex);
 				auto itemNameStr = enumItem->getName();
 				auto itemName = mStringWriter.Write(itemNameStr.data(), itemNameStr.size());
 
 				std::stringstream itemQualifiedNameSS;
-				itemQualifiedNameSS << context.QualifiedName() << "::" << std::string_view(itemNameStr);
+				itemQualifiedNameSS << context->QualifiedName() << "::" << std::string_view(itemNameStr);
 
 				auto itemQualifiedNameStr = itemQualifiedNameSS.str();
 				auto itemQualifiedName = mStringWriter.Write(itemQualifiedNameStr.data(), itemQualifiedNameStr.size());
@@ -271,8 +265,11 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
             }
         }
 
+		std::lock_guard guard(mWriterMutex);
+		auto name = mStringWriter.Write(nameStr.data(), nameStr.size());
+		auto qualifiedName = mStringWriter.Write(qualifiedNameStr.data(), qualifiedNameStr.size());
         auto cases = mObjectWriter.Write(enumCases.data(), enumCases.size() * sizeof(Reflection::EnumCaseDescription));
-        auto handle = context.RegisterEnum(Reflection::EnumDescription({ name, qualifiedName, attributes, guid, typeHash }, enumSize, cases));
+        auto handle = context->RegisterEnum(Reflection::EnumDescription({ name, qualifiedName, attributes, guid, typeHash }, enumSize, cases));
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;
@@ -323,37 +320,30 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		}
 		
 		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
-		auto& externalContext = mContext.EmplaceContext(namespaceName);
-		for (const auto& [guid, classes] : externalContext.mGuidToClass)
+		auto externalContext = mContext.EmplaceContext(namespaceName);
+		auto registeredClassHandle = externalContext->GetRegisteredClassInstance(name);
+		if (registeredClassHandle != InvalidMetaIndex)
 		{
-			const auto& registeredClassDesc = mContext.mClasses[classes[0]];
-			auto registeredName = ResolveString(registeredClassDesc.mQualifiedName);
-			if (QualifiedNameWithoutTemplateDeclaration(registeredName) == QualifiedNameWithoutTemplateDeclaration(qualifiedName))
+			auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);
+			auto templateDef = ExtractTemplateDefinition(templateParamDescs);
+			
+			if (templateDef.empty() == false)
 			{
-				auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);
-				auto templateDef = ExtractTemplateDefinition(templateParamDescs);
-				auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-
-				if (templateDef.empty() == false)
-				{
-					qualifiedName.append("<").append(templateDef).append(">");
-				}
-				uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
-
-				auto classHandles = mContext.GetClassHandles(guid);
-				for (const auto handle : classHandles)
-				{
-					if (typeHash == mContext.mClasses[handle].TypeHash())
-					{
-						return handle; // already processed
-					}
-				}
-
-				auto qualifiedNameView = mStringWriter.Write(qualifiedName.c_str(), qualifiedName.length());
-				return externalContext.RegisterClass(Reflection::ClassDescription(
-					{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
-					registeredClassDesc.mSize, registeredClassDesc.mFields, registeredClassDesc.mBaseClasses, templateParams), templateDef);
+				qualifiedName.append("<").append(templateDef).append(">");
 			}
+			uint32_t typeHash = Reflection::Utils::HashString(qualifiedName.c_str());
+			const auto& registeredClassDesc = mContext.GetClass(registeredClassHandle);
+			if (typeHash == registeredClassDesc.TypeHash())
+			{
+				return registeredClassHandle; // already processed
+			}
+
+			std::lock_guard guard(mWriterMutex);
+			auto qualifiedNameView = mStringWriter.Write(qualifiedName.c_str(), qualifiedName.length());
+			auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
+			return externalContext->RegisterClass(Reflection::ClassDescription(
+				{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
+				registeredClassDesc.mSize, registeredClassDesc.mFields, registeredClassDesc.mBaseClasses, templateParams), templateDef);
 		}
 		return {}; // No annotation attribute, skip processing
 	}
@@ -376,11 +366,10 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		auto templateDef = ExtractTemplateDefinition(templateParamDescs);
 
 		auto classNameStr = recordDecl->getName();
-		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
-		auto& context = GetDeclReflectionContext(recordDecl->getParent());
+		auto context = GetDeclReflectionContext(recordDecl->getParent());
 
 		std::stringstream qualifiedClassNameSS;
-		qualifiedClassNameSS << context.QualifiedName() << "::" << std::string_view(classNameStr);
+		qualifiedClassNameSS << context->QualifiedName() << "::" << std::string_view(classNameStr);
 
 		if (templateDef.empty() == false)
 		{
@@ -388,18 +377,18 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		}
 
 		auto qualifiedClassNameStr = qualifiedClassNameSS.str();
-		auto qualifiedClassName = mStringWriter.Write(qualifiedClassNameStr.data(), qualifiedClassNameStr.size());
+		auto qualifiedClassNameWithoutTemplateDecl = NameWithoutTemplateDeclaration(qualifiedClassNameStr);
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedClassNameStr.c_str());
 
 		auto classHandles = mContext.GetClassHandles(recordGuid);
 		if (classHandles.size() > 0)
 		{
-			auto registeredClassName = ResolveString(mContext.mClasses[classHandles[0]].mQualifiedName);
-			if (QualifiedNameWithoutTemplateDeclaration(registeredClassName) == QualifiedNameWithoutTemplateDeclaration(qualifiedClassNameStr))
+			auto registeredClassName = ResolveString(mContext.GetClass(classHandles[0]).mQualifiedName);
+			if (NameWithoutTemplateDeclaration(registeredClassName) == qualifiedClassNameWithoutTemplateDecl)
 			{
 				for (const auto handle : classHandles)
 				{
-					if (typeHash == mContext.mClasses[handle].TypeHash())
+					if (typeHash == mContext.GetClass(handle).TypeHash())
 					{
 						return handle; // already processed
 					}
@@ -492,7 +481,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 					}
 
 					fieldMetaType = Reflection::MetaType::Class;
-					fieldHash = mContext.mClasses[fieldHandle].TypeHash();
+					fieldHash = mContext.GetClass(fieldHandle).TypeHash();
                 }
                 else if (fieldType->isEnumeralType())
                 {
@@ -507,10 +496,10 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 					}
 
                     std::stringstream qualifiedName;
-                    qualifiedName << context.QualifiedName() << "::" << std::string_view(enumDecl->getName());
+                    qualifiedName << context->QualifiedName() << "::" << std::string_view(enumDecl->getName());
                     
 					fieldMetaType = Reflection::MetaType::Enum;
-					fieldHash = mContext.mEnums[fieldHandle].TypeHash();
+					fieldHash = mContext.GetEnum(fieldHandle).TypeHash();
                 }
                 else if (fieldType->isBuiltinType())
                 {
@@ -530,12 +519,13 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 				size_t fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
 
 				auto fieldNameStr = field->getName();
-				auto fieldName = mStringWriter.Write(fieldNameStr.data(), fieldNameStr.size());
 
 				std::stringstream fieldQualifiedNameSS;
 				fieldQualifiedNameSS << qualifiedClassNameStr << "::" << std::string_view(fieldNameStr);
-
 				auto fieldQualifiedNameStr = fieldQualifiedNameSS.str();
+
+				std::lock_guard guard(mWriterMutex);
+				auto fieldName = mStringWriter.Write(fieldNameStr.data(), fieldNameStr.size());
 				auto fieldQualifiedName = mStringWriter.Write(fieldQualifiedNameStr.data(), fieldQualifiedNameStr.size());
                 fieldDescs.emplace_back(Reflection::FieldDescription({ fieldName, fieldQualifiedName, fieldAttribs, fieldGuid, fieldHash }, fieldOffset, fieldSize, fieldMetaType));
             }
@@ -572,11 +562,14 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
             }
         }
 
+		std::lock_guard guard(mWriterMutex);
 		size_t classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
+		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
+		auto qualifiedClassName = mStringWriter.Write(qualifiedClassNameStr.data(), qualifiedClassNameStr.size());
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-		auto handle = context.RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDef);
+		auto handle = context->RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDef);
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;
@@ -620,7 +613,6 @@ ArrayHandle ReflectionParser::HandleArrayType(const clang::ConstantArrayType* ar
             return {};
         }
 
-        const auto& innerArrayDesc = mContext.mArrays[innerArrayHandle];
         Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Array, innerArrayHandle, arraySize);
     	return mContext.RegisterArray(arrayDesc);
     }
@@ -633,7 +625,7 @@ ArrayHandle ReflectionParser::HandleArrayType(const clang::ConstantArrayType* ar
             return {};
         }
 
-        const auto& classDesc = mContext.mClasses[classHandle];
+        const auto& classDesc = mContext.GetClass(classHandle);
         Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Class, classDesc.TypeHash(), arraySize);
     	return mContext.RegisterArray(arrayDesc);
     }
@@ -646,7 +638,7 @@ ArrayHandle ReflectionParser::HandleArrayType(const clang::ConstantArrayType* ar
             return {};
         }
 
-        const auto& enumDesc = mContext.mEnums[enumHandle];
+        const auto& enumDesc = mContext.GetEnum(enumHandle);
 		Reflection::ArrayDescription arrayDesc(Reflection::MetaType::Enum, enumDesc.TypeHash(), arraySize);
     	return mContext.RegisterArray(arrayDesc);
     }
@@ -659,11 +651,11 @@ ArrayHandle ReflectionParser::HandleArrayType(const clang::ConstantArrayType* ar
 	return {};
 }
 
-ReflectionContext& ReflectionParser::GetDeclReflectionContext(const clang::DeclContext* declContext)
+ReflectionContext* ReflectionParser::GetDeclReflectionContext(const clang::DeclContext* declContext)
 {
 	if (declContext == nullptr)
 	{
-		return mContext;
+		return &mContext;
 	}
 
 	while (declContext)
@@ -682,7 +674,7 @@ ReflectionContext& ReflectionParser::GetDeclReflectionContext(const clang::DeclC
 		}
 		declContext = declContext->getParent();
 	}
-	return mContext;
+	return &mContext;
 }
 
 Reflection::BufferView ReflectionParser::ParseAttributes(const std::string& annotation)
@@ -693,6 +685,8 @@ Reflection::BufferView ReflectionParser::ParseAttributes(const std::string& anno
  
     std::vector<uint32_t> attributeHashes;
 	std::vector<Reflection::BufferView> attributeViews;
+
+	std::lock_guard guard(mWriterMutex);
     for (; it != end; ++it)
     {
         std::string attrName = (*it)[1].str();
@@ -826,7 +820,7 @@ std::vector<Reflection::TemplateParameterDescription> ReflectionParser::ExtractT
 				auto argClassHandle = HandleRecordDecl(argRecordDecl);
 				if (argClassHandle != InvalidMetaIndex)
 				{
-					const auto typeHash = mContext.mClasses[argClassHandle].TypeHash();
+					const auto typeHash = mContext.GetClass(argClassHandle).TypeHash();
 					templateParamDescs.emplace_back(Reflection::MetaType::Class, typeHash);
 				}
 			}
@@ -838,7 +832,7 @@ std::vector<Reflection::TemplateParameterDescription> ReflectionParser::ExtractT
 				auto argEnumHandle = HandleEnumDecl(argEnumDecl);
 				if (argEnumHandle != InvalidMetaIndex)
 				{
-					const auto typeHash = mContext.mEnums[argEnumHandle].TypeHash();
+					const auto typeHash = mContext.GetEnum(argEnumHandle).TypeHash();
 					templateParamDescs.emplace_back(Reflection::MetaType::Enum, typeHash);
 				}
 			}
@@ -855,12 +849,12 @@ std::string ReflectionParser::ExtractTemplateDefinition(const std::vector<Reflec
 		const auto& param = parameters[i];
 		if (param.GetType() == Reflection::MetaType::Class)
 		{
-			const auto& paramDesc = mContext.mClasses[mContext.mTypeHashMap[param.TypeHash()]];
+			const auto& paramDesc = mContext.GetClass(param.TypeHash());
 			definitionSS << ResolveString(paramDesc.mQualifiedName);
 		}
 		else if (param.GetType() == Reflection::MetaType::Enum)
 		{
-			const auto& paramDesc = mContext.mEnums[mContext.mTypeHashMap[param.TypeHash()]];
+			const auto& paramDesc = mContext.GetEnum(param.TypeHash());
 			definitionSS << ResolveString(paramDesc.mQualifiedName);
 		}
 		else if (param.GetType() == Reflection::MetaType::Primitive)
@@ -981,10 +975,10 @@ bool ReflectionParser::InstanceOfSameType(const Reflection::ClassDescription& lh
 {
 	auto lhsQualifiedName = ResolveString(lhs.mQualifiedName);
 	auto rhsQualifiedName = ResolveString(rhs.mQualifiedName);
-	return QualifiedNameWithoutTemplateDeclaration(lhsQualifiedName) == QualifiedNameWithoutTemplateDeclaration(rhsQualifiedName);
+	return NameWithoutTemplateDeclaration(lhsQualifiedName) == NameWithoutTemplateDeclaration(rhsQualifiedName);
 }
 
-std::string_view ReflectionParser::QualifiedNameWithoutTemplateDeclaration(const std::string_view name) const
+std::string_view ReflectionParser::NameWithoutTemplateDeclaration(const std::string_view name) const
 {
 	size_t template_start = name.find_first_of('<');
 	if (template_start == std::string_view::npos)

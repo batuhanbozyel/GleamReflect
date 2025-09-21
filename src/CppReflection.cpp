@@ -7,6 +7,8 @@
 #include <llvm/Support/CommandLine.h>
 
 #include <filesystem>
+#include <algorithm>
+#include <thread>
 
 using namespace Gleam;
 
@@ -99,28 +101,79 @@ int main(int argc, const char **argv)
         llvm::errs() << optionsParser.takeError();
         return 1;
     }
-    clang::tooling::CommonOptionsParser& parser = optionsParser.get();
-    clang::tooling::ClangTool tool(parser.getCompilations(),
-                                   parser.getSourcePathList());
-    
-    tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args, llvm::StringRef filename) -> clang::tooling::CommandLineArguments
-    {
-        clang::tooling::CommandLineArguments adjustedArgs = args;
-        adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
-		adjustedArgs.push_back("--no-warnings");
-        return adjustedArgs;
-    });
-    
-	ReflectionParser reflectionParser;
-    auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(reflectionParser);
 
-    int result = tool.run(frontendActionFactory.get());
-	if (result == 0)
+    clang::tooling::CommonOptionsParser& parser = optionsParser.get();
+	std::vector<std::string> sourceFiles = parser.getSourcePathList();
+	if (sourceFiles.empty())
 	{
-		std::string moduleName = Module;
-		std::string headerDirectory = HeaderDir;
-		std::string binaryDirectory = BinaryDir;
-		reflectionParser.GenerateOutput(moduleName, headerDirectory, binaryDirectory);
+		llvm::errs() << "No source files provided\n";
+		return 1;
 	}
-	return result;
+
+	std::vector<std::string> headerFiles;
+	headerFiles.reserve(sourceFiles.size());
+	std::copy_if(sourceFiles.begin(), sourceFiles.end(), std::back_inserter(headerFiles), [](const std::string& file) -> bool
+	{
+		auto extension = file.substr(file.find_last_of('.'));
+		return extension == ".h" || extension == ".hpp" || extension == ".hxx" ||
+			extension == ".h++" || extension == ".hh" || extension == ".inc";
+	});
+
+	uint32_t numThreads = std::min(std::thread::hardware_concurrency(), static_cast<uint32_t>(sourceFiles.size()));
+	std::vector<int> threadResults(numThreads, 0);
+	std::vector<std::thread> parserThreads;
+	parserThreads.reserve(numThreads);
+
+	std::mutex logMutex;
+	ReflectionParser reflectionParser;
+	for (uint32_t threadId = 0; threadId < numThreads; ++threadId)
+	{
+		parserThreads.emplace_back([&logMutex, &reflectionParser, &threadResults, &parser, &headerFiles, numThreads](uint32_t threadId)
+		{
+			uint32_t numFilesPerThread = static_cast<uint32_t>(std::ceil(static_cast<float>(headerFiles.size()) / static_cast<float>(numThreads)));
+			uint32_t numFiles = std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
+
+			std::vector<std::string> files;
+			files.reserve(numFiles);
+
+			for (uint32_t i = 0; i < numFiles; ++i)
+			{
+				files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
+			}
+
+			llvm::ArrayRef<std::string> filesRef(files.data(), files.size());
+			clang::tooling::ClangTool tool(parser.getCompilations(), filesRef);
+			tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args, llvm::StringRef filename) -> clang::tooling::CommandLineArguments
+			{
+				clang::tooling::CommandLineArguments adjustedArgs = args;
+				adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
+				adjustedArgs.push_back("--no-warnings");
+				return adjustedArgs;
+			});
+
+			auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(reflectionParser);
+			threadResults[threadId] = tool.run(frontendActionFactory.get());
+		}, threadId);
+	}
+
+	for (auto& thread : parserThreads)
+	{
+		thread.join();
+	}
+
+	for (uint32_t i = 0; i < numThreads; ++i)
+	{
+		if (threadResults[i] != 0)
+		{
+			llvm::errs() << "Thread " << i << " failed with code: " << threadResults[i] << "\n";
+			return threadResults[i];
+		}
+	}
+
+	std::string moduleName = Module;
+	std::string headerDirectory = HeaderDir;
+	std::string binaryDirectory = BinaryDir;
+	reflectionParser.GenerateOutput(moduleName, headerDirectory, binaryDirectory);
+
+	return 0;
 }
