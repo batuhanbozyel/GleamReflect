@@ -85,12 +85,22 @@ project(GleamReflect)
 
         source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
 
-        set_target_properties(AArch64TargetParserTableGen
-            acc_gen
-            ARMTargetParserTableGen
-            clang-tablegen-targets
-            intrinsics_gen
-            omp_gen
-            RISCVTargetParserTableGen
-            vt_gen PROPERTIES FOLDER Dependencies)
+        if (APPLE)
+            set_target_properties(AArch64TargetParserTableGen
+                acc_gen
+                ARMTargetParserTableGen
+                clang-tablegen-targets
+                intrinsics_gen
+                omp_gen
+                RISCVTargetParserTableGen PROPERTIES FOLDER Dependencies)
+        else()
+            set_target_properties(AArch64TargetParserTableGen
+                acc_gen
+                ARMTargetParserTableGen
+                clang-tablegen-targets
+                intrinsics_gen
+                omp_gen
+                RISCVTargetParserTableGen
+                vt_gen PROPERTIES FOLDER Dependencies)
+        endif()
     endif()
