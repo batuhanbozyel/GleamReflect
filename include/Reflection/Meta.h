@@ -146,8 +146,8 @@ private:
 
 class MetaDescription
 {
-	friend class ReflectionParser;
-	friend class ReflectionContext;
+	friend class Gleam::ReflectionParser;
+	friend class Gleam::ReflectionContext;
 public:
 
 	MetaDescription() = default;
@@ -333,8 +333,8 @@ private:
 
 class ClassDescription : public MetaDescription
 {
-	friend class ReflectionParser;
-	friend class ReflectionContext;
+	friend class Gleam::ReflectionParser;
+	friend class Gleam::ReflectionContext;
 public:
     
 	ClassDescription() = default;
