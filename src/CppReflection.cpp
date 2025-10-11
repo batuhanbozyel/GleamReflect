@@ -93,6 +93,12 @@ static llvm::cl::opt<std::string> BinaryDir("binary-dir",
                                             llvm::cl::Required,
                                             llvm::cl::cat(ReflectionToolCategory));
 
+static llvm::cl::opt<bool> LogTrace("log-trace",
+									llvm::cl::desc("Enable logging trace"),
+									llvm::cl::value_desc("log"),
+									llvm::cl::Optional,
+									llvm::cl::cat(ReflectionToolCategory));
+
 int main(int argc, const char **argv)
 {
     auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, ReflectionToolCategory);
@@ -103,7 +109,7 @@ int main(int argc, const char **argv)
     }
 
     clang::tooling::CommonOptionsParser& parser = optionsParser.get();
-	std::vector<std::string> sourceFiles = parser.getSourcePathList();
+	const auto& sourceFiles = parser.getSourcePathList();
 	if (sourceFiles.empty())
 	{
 		llvm::errs() << "No source files provided\n";
@@ -114,9 +120,14 @@ int main(int argc, const char **argv)
 	headerFiles.reserve(sourceFiles.size());
 	std::copy_if(sourceFiles.begin(), sourceFiles.end(), std::back_inserter(headerFiles), [](const std::string& file) -> bool
 	{
-		auto extension = file.substr(file.find_last_of('.'));
-		return extension == ".h" || extension == ".hpp" || extension == ".hxx" ||
-			extension == ".h++" || extension == ".hh" || extension == ".inc";
+		auto extensionSeperator = file.find_last_of('.');
+		if (extensionSeperator != std::string::npos)
+		{
+			auto extension = file.substr(extensionSeperator);
+			return extension == ".h" || extension == ".hpp" || extension == ".hxx" ||
+				extension == ".h++" || extension == ".hh" || extension == ".inc";
+		}
+		return false;
 	});
 
 	uint32_t numThreads = std::min(std::thread::hardware_concurrency(), static_cast<uint32_t>(sourceFiles.size()));
@@ -125,10 +136,11 @@ int main(int argc, const char **argv)
 	parserThreads.reserve(numThreads);
 
 	std::mutex logMutex;
+	bool logTrace = LogTrace;
 	ReflectionParser reflectionParser;
 	for (uint32_t threadId = 0; threadId < numThreads; ++threadId)
 	{
-		parserThreads.emplace_back([&logMutex, &reflectionParser, &threadResults, &parser, &headerFiles, numThreads](uint32_t threadId)
+		parserThreads.emplace_back([&logMutex, &reflectionParser, &threadResults, &parser, &headerFiles, logTrace, numThreads, threadId]()
 		{
 			uint32_t numFilesPerThread = static_cast<uint32_t>(std::ceil(static_cast<float>(headerFiles.size()) / static_cast<float>(numThreads)));
 			uint32_t numFiles = std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
@@ -139,6 +151,17 @@ int main(int argc, const char **argv)
 			for (uint32_t i = 0; i < numFiles; ++i)
 			{
 				files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
+			}
+
+			if (logTrace)
+			{
+				std::lock_guard guard(logMutex);
+				llvm::outs() << "Thread " << threadId << " processing files: ";
+				for (const auto& file : files)
+				{
+					llvm::outs() << file << " ";
+				}
+				llvm::outs() << "\n";
 			}
 
 			llvm::ArrayRef<std::string> filesRef(files.data(), files.size());
@@ -153,7 +176,7 @@ int main(int argc, const char **argv)
 
 			auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(reflectionParser);
 			threadResults[threadId] = tool.run(frontendActionFactory.get());
-		}, threadId);
+		});
 	}
 
 	for (auto& thread : parserThreads)
