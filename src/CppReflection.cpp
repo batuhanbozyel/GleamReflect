@@ -135,35 +135,33 @@ int main(int argc, const char **argv)
 	std::vector<std::thread> parserThreads;
 	parserThreads.reserve(numThreads);
 
-	std::mutex logMutex;
 	bool logTrace = LogTrace;
 	ReflectionParser reflectionParser;
 	for (uint32_t threadId = 0; threadId < numThreads; ++threadId)
 	{
-		parserThreads.emplace_back([&logMutex, &reflectionParser, &threadResults, &parser, &headerFiles, logTrace, numThreads, threadId]()
+		uint32_t numFilesPerThread = static_cast<uint32_t>(std::ceil(static_cast<float>(headerFiles.size()) / static_cast<float>(numThreads)));
+		uint32_t numFiles = std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
+
+		std::vector<std::string> files;
+		files.reserve(numFiles);
+
+		for (uint32_t i = 0; i < numFiles; ++i)
 		{
-			uint32_t numFilesPerThread = static_cast<uint32_t>(std::ceil(static_cast<float>(headerFiles.size()) / static_cast<float>(numThreads)));
-			uint32_t numFiles = std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
+			files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
+		}
 
-			std::vector<std::string> files;
-			files.reserve(numFiles);
-
-			for (uint32_t i = 0; i < numFiles; ++i)
+		if (logTrace)
+		{
+			llvm::outs() << "Thread " << threadId << " processing files: ";
+			for (const auto& file : files)
 			{
-				files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
+				llvm::outs() << file << " ";
 			}
+			llvm::outs() << "\n";
+		}
 
-			if (logTrace)
-			{
-				std::lock_guard guard(logMutex);
-				llvm::outs() << "Thread " << threadId << " processing files: ";
-				for (const auto& file : files)
-				{
-					llvm::outs() << file << " ";
-				}
-				llvm::outs() << "\n";
-			}
-
+		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, threadId]()
+		{
 			llvm::ArrayRef<std::string> filesRef(files.data(), files.size());
 			clang::tooling::ClangTool tool(parser.getCompilations(), filesRef);
 			tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args, llvm::StringRef filename) -> clang::tooling::CommandLineArguments
