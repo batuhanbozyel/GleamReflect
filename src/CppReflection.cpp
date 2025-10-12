@@ -165,6 +165,7 @@ int main(int argc, const char **argv)
 
 		if (files.empty())
 		{
+			numThreads = threadId;
 			break;
 		}
 
