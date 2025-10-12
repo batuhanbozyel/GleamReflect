@@ -153,7 +153,7 @@ int main(int argc, const char **argv)
 
 		if (logTrace && not files.empty())
 		{
-			llvm::outs() << "Thread " << threadId << " processing files: ";
+			llvm::outs() << "Thread " << threadId << " processing " << numFiles << " files: ";
 			for (const auto& file : files)
 			{
 				llvm::outs() << file << " ";
