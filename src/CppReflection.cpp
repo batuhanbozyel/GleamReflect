@@ -151,7 +151,7 @@ int main(int argc, const char **argv)
 			files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
 		}
 
-		if (logTrace)
+		if (logTrace && not files.empty())
 		{
 			llvm::outs() << "Thread " << threadId << " processing files: ";
 			for (const auto& file : files)
@@ -162,6 +162,11 @@ int main(int argc, const char **argv)
 			llvm::outs().flush();
 		}
 		++logCounter;
+
+		if (files.empty())
+		{
+			break;
+		}
 
 		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, &logCounter, numThreads, threadId]()
 		{
