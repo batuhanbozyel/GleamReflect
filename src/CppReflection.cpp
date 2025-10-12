@@ -130,7 +130,7 @@ int main(int argc, const char **argv)
 		return false;
 	});
 
-	uint32_t numThreads = std::min(std::thread::hardware_concurrency(), static_cast<uint32_t>(sourceFiles.size()));
+	std::atomic_uint numThreads = std::min(std::thread::hardware_concurrency(), static_cast<uint32_t>(sourceFiles.size()));
 	std::vector<int> threadResults(numThreads, 0);
 	std::vector<std::thread> parserThreads;
 	parserThreads.reserve(numThreads);
@@ -165,11 +165,11 @@ int main(int argc, const char **argv)
 
 		if (files.empty())
 		{
-			numThreads = threadId;
+			numThreads = threadId + 1;
 			break;
 		}
 
-		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, &logCounter, numThreads, threadId]()
+		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, &logCounter, &numThreads, threadId]()
 		{
 			llvm::ArrayRef<std::string> filesRef(files.data(), files.size());
 			clang::tooling::ClangTool tool(parser.getCompilations(), filesRef);
