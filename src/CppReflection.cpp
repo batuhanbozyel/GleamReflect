@@ -136,6 +136,7 @@ int main(int argc, const char **argv)
 	parserThreads.reserve(numThreads);
 
 	bool logTrace = LogTrace;
+	std::atomic_uint logCounter = 0;
 	ReflectionParser reflectionParser;
 	for (uint32_t threadId = 0; threadId < numThreads; ++threadId)
 	{
@@ -157,10 +158,12 @@ int main(int argc, const char **argv)
 			{
 				llvm::outs() << file << " ";
 			}
-			llvm::outs() << "\n";
+			llvm::outs() << "\n\n";
+			llvm::outs().flush();
 		}
+		++logCounter;
 
-		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, threadId]()
+		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, &logCounter, numThreads, threadId]()
 		{
 			llvm::ArrayRef<std::string> filesRef(files.data(), files.size());
 			clang::tooling::ClangTool tool(parser.getCompilations(), filesRef);
@@ -173,6 +176,7 @@ int main(int argc, const char **argv)
 			});
 
 			auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(reflectionParser);
+			while (logCounter < numThreads); // spinlock
 			threadResults[threadId] = tool.run(frontendActionFactory.get());
 		});
 	}
