@@ -358,7 +358,7 @@ public:
     auto ResolveBaseClasses() const
     {
 		const auto ptr = IDatabase::GetInstance()->GetObject<uint32_t>(mBaseClasses);
-		auto indices = DenseArrayView{ ptr, mBaseClasses.size / sizeof(BufferView) };
+		auto indices = DenseArrayView{ ptr, mBaseClasses.size / sizeof(uint32_t) };
         auto classes = IDatabase::GetInstance()->GetClasses();
         return SparseArrayView{ classes.data(), indices };
 	}
