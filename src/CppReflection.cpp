@@ -141,7 +141,7 @@ int main(int argc, const char **argv)
 	for (uint32_t threadId = 0; threadId < numThreads; ++threadId)
 	{
 		uint32_t numFilesPerThread = static_cast<uint32_t>(std::ceil(static_cast<float>(headerFiles.size()) / static_cast<float>(numThreads)));
-		uint32_t numFiles = std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
+		uint32_t numFiles = (numFilesPerThread * threadId >= headerFiles.size()) ? 0 : std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
 
 		std::vector<std::string> files;
 		files.reserve(numFiles);
@@ -151,7 +151,13 @@ int main(int argc, const char **argv)
 			files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
 		}
 
-		if (logTrace && not files.empty())
+		if (files.empty())
+		{
+			numThreads = threadId;
+			break;
+		}
+
+		if (logTrace)
 		{
 			llvm::outs() << "Thread " << threadId << " processing " << numFiles << " files: ";
 			for (const auto& file : files)
@@ -162,12 +168,6 @@ int main(int argc, const char **argv)
 			llvm::outs().flush();
 		}
 		++logCounter;
-
-		if (files.empty())
-		{
-			numThreads = threadId + 1;
-			break;
-		}
 
 		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, &logCounter, &numThreads, threadId]()
 		{
@@ -192,13 +192,19 @@ int main(int argc, const char **argv)
 		thread.join();
 	}
 
+	bool success = true;
 	for (uint32_t i = 0; i < numThreads; ++i)
 	{
 		if (threadResults[i] != 0)
 		{
 			llvm::errs() << "Thread " << i << " failed with code: " << threadResults[i] << "\n";
-			return threadResults[i];
+			success = false;
 		}
+	}
+
+	if (not success)
+	{
+		return -1;
 	}
 
 	std::string moduleName = Module;
