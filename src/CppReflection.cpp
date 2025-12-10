@@ -4,13 +4,45 @@
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
+#include <clang/Tooling/AllTUsExecution.h>
+#include <clang/Tooling/ArgumentsAdjusters.h>
 #include <llvm/Support/CommandLine.h>
 
 #include <filesystem>
 #include <algorithm>
 #include <thread>
+#include <memory>
 
 using namespace Gleam;
+
+class ReflectionCompilationDatabase : public clang::tooling::CompilationDatabase
+{
+public:
+	ReflectionCompilationDatabase(const clang::tooling::CompilationDatabase& base,
+								   const std::vector<std::string>& sourceFiles)
+		: mBase(base), mSourceFiles(sourceFiles)
+	{
+	}
+	
+	std::vector<clang::tooling::CompileCommand> getCompileCommands(llvm::StringRef FilePath) const override
+	{
+		return mBase.getCompileCommands(FilePath);
+	}
+	
+	std::vector<std::string> getAllFiles() const override
+	{
+		return mSourceFiles;
+	}
+	
+	std::vector<clang::tooling::CompileCommand> getAllCompileCommands() const override
+	{
+		return mBase.getAllCompileCommands();
+	}
+	
+private:
+	const clang::tooling::CompilationDatabase& mBase;
+	std::vector<std::string> mSourceFiles;
+};
 
 class ReflectionASTConsumer : public clang::ASTConsumer
 {
@@ -115,102 +147,49 @@ int main(int argc, const char **argv)
 		llvm::errs() << "No source files provided\n";
 		return 1;
 	}
-
-	std::vector<std::string> headerFiles;
-	headerFiles.reserve(sourceFiles.size());
-	std::copy_if(sourceFiles.begin(), sourceFiles.end(), std::back_inserter(headerFiles), [](const std::string& file) -> bool
+	
+	if (LogTrace)
 	{
-		auto extensionSeperator = file.find_last_of('.');
-		if (extensionSeperator != std::string::npos)
+		llvm::outs() << "Processing " << sourceFiles.size() << " header files:\n";
+		for (const auto& file : sourceFiles)
 		{
-			auto extension = file.substr(extensionSeperator);
-			return extension == ".h" || extension == ".hpp" || extension == ".hxx" ||
-				extension == ".h++" || extension == ".hh" || extension == ".inc";
+			llvm::outs() << "  " << file << "\n";
 		}
-		return false;
-	});
-
-	std::atomic_uint numThreads = std::min(std::thread::hardware_concurrency(), static_cast<uint32_t>(sourceFiles.size()));
-	std::vector<int> threadResults(numThreads, 0);
-	std::vector<std::thread> parserThreads;
-	parserThreads.reserve(numThreads);
-
-	bool logTrace = LogTrace;
-	std::atomic_uint logCounter = 0;
+		llvm::outs() << "\n";
+		llvm::outs().flush();
+	}
+	
+	auto reflectionCompilationDB = ReflectionCompilationDatabase(parser.getCompilations(), sourceFiles);
+	auto executor = clang::tooling::AllTUsToolExecutor(reflectionCompilationDB, 0);
+	auto adjuster = clang::tooling::getInsertArgumentAdjuster(
+			{"-D__GLEAM_REFLECTION__", "--no-warnings"},
+			clang::tooling::ArgumentInsertPosition::END);
+	
+	if (LogTrace)
+	{
+		llvm::outs() << "Starting reflection generation...\n";
+		llvm::outs().flush();
+	}
+	
 	ReflectionParser reflectionParser;
-	for (uint32_t threadId = 0; threadId < numThreads; ++threadId)
+	std::pair<std::unique_ptr<clang::tooling::FrontendActionFactory>, clang::tooling::ArgumentsAdjuster> frontend = std::pair{std::make_unique<ReflectionFrontendActionFactory>(reflectionParser), adjuster};
+	llvm::Error err = executor.execute(llvm::ArrayRef<decltype(frontend)>(frontend));
+	if (err)
 	{
-		uint32_t numFilesPerThread = static_cast<uint32_t>(std::ceil(static_cast<float>(headerFiles.size()) / static_cast<float>(numThreads)));
-		uint32_t numFiles = (numFilesPerThread * threadId >= headerFiles.size()) ? 0 : std::min(numFilesPerThread, (uint32_t)headerFiles.size() - numFilesPerThread * threadId);
-
-		std::vector<std::string> files;
-		files.reserve(numFiles);
-
-		for (uint32_t i = 0; i < numFiles; ++i)
-		{
-			files.emplace_back(headerFiles[numFilesPerThread * threadId + i]);
-		}
-
-		if (files.empty())
-		{
-			numThreads = threadId;
-			break;
-		}
-
-		if (logTrace)
-		{
-			llvm::outs() << "Thread " << threadId << " processing " << numFiles << " files: ";
-			for (const auto& file : files)
-			{
-				llvm::outs() << file << " ";
-			}
-			llvm::outs() << "\n\n";
-			llvm::outs().flush();
-		}
-		++logCounter;
-
-		parserThreads.emplace_back([&reflectionParser, &threadResults, &parser, files, &logCounter, &numThreads, threadId]()
-		{
-			llvm::ArrayRef<std::string> filesRef(files.data(), files.size());
-			clang::tooling::ClangTool tool(parser.getCompilations(), filesRef);
-			tool.appendArgumentsAdjuster([](const clang::tooling::CommandLineArguments& args, llvm::StringRef filename) -> clang::tooling::CommandLineArguments
-			{
-				clang::tooling::CommandLineArguments adjustedArgs = args;
-				adjustedArgs.push_back("-D__GLEAM_REFLECTION__");
-				adjustedArgs.push_back("--no-warnings");
-				return adjustedArgs;
-			});
-
-			auto frontendActionFactory = std::make_unique<ReflectionFrontendActionFactory>(reflectionParser);
-			while (logCounter < numThreads); // spinlock
-			threadResults[threadId] = tool.run(frontendActionFactory.get());
-		});
+		llvm::errs() << "Execution failed: " << llvm::toString(std::move(err)) << "\n";
+		return 1;
 	}
-
-	for (auto& thread : parserThreads)
-	{
-		thread.join();
-	}
-
-	bool success = true;
-	for (uint32_t i = 0; i < numThreads; ++i)
-	{
-		if (threadResults[i] != 0)
-		{
-			llvm::errs() << "Thread " << i << " failed with code: " << threadResults[i] << "\n";
-			success = false;
-		}
-	}
-
-	if (not success)
-	{
-		return -1;
-	}
-
+	
 	std::string moduleName = Module;
 	std::string headerDirectory = HeaderDir;
 	std::string binaryDirectory = BinaryDir;
 	reflectionParser.GenerateOutput(moduleName, headerDirectory, binaryDirectory);
 
+	if (LogTrace)
+	{
+		llvm::outs() << "Reflection generation completed successfully\n";
+		llvm::outs().flush();
+	}
+	
 	return 0;
 }
