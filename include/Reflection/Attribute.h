@@ -224,7 +224,7 @@ GLEAM_ATTRIBUTE(PrettyName)
 		if (args.size() > 2) // empty name check
 		{
 			std::memcpy(name, &args[1], args.size() - 2); // skip quotes
-			name[args.size()] = '\0';
+			name[args.size() - 2] = '\0';
 		}
 	}
 };
