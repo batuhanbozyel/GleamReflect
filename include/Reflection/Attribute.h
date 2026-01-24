@@ -221,8 +221,11 @@ GLEAM_ATTRIBUTE(PrettyName)
 
 	explicit PrettyName(const std::string& args)
 	{
-		std::memcpy(name, args.c_str(), args.size());
-		name[args.size()] = '\0';
+		if (args.size() > 2) // empty name check
+		{
+			std::memcpy(name, &args[1], args.size() - 2); // skip quotes
+			name[args.size()] = '\0';
+		}
 	}
 };
 
