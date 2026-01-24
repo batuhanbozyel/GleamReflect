@@ -162,19 +162,19 @@ GLEAM_ATTRIBUTE(Guid)
 		std::string str;
 		str.resize(36);
 		snprintf(str.data(),
-				str.length() + 1,
-				"%08X-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
-				mData1,
-				mData2,
-				mData3,
-				mData4[0],
-				mData4[1],
-				mData4[2],
-				mData4[3],
-				mData4[4],
-				mData4[5],
-				mData4[6],
-				mData4[7]);
+				 str.length() + 1,
+				 "%08X-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
+				 mData1,
+				 mData2,
+				 mData3,
+				 mData4[0],
+				 mData4[1],
+				 mData4[2],
+				 mData4[3],
+				 mData4[4],
+				 mData4[5],
+				 mData4[6],
+				 mData4[7]);
 		return str;
 	}
 
@@ -193,6 +193,11 @@ GLEAM_ATTRIBUTE(Version)
     {
         
     }
+
+	explicit Version(const std::string& args)
+	{
+		version = std::stoi(args);
+	}
 };
 
 GLEAM_ATTRIBUTE(EntityComponent)
@@ -205,13 +210,20 @@ GLEAM_ATTRIBUTE(Serializable)
 
 GLEAM_ATTRIBUTE(PrettyName)
 {
-    std::string_view name;
+    char name[64];
     
-    explicit constexpr PrettyName(const std::string_view name)
-        : name(name)
+	template<size_t N>
+	explicit constexpr PrettyName(const char(&str)[N])
     {
-        
+		std::memcpy(name, str, N);
+		name[N] = '\0';
     }
+
+	explicit PrettyName(const std::string& args)
+	{
+		std::memcpy(name, args.c_str(), args.size());
+		name[args.size()] = '\0';
+	}
 };
 
 } // namespace Attribute
