@@ -51,7 +51,7 @@ inline constexpr PrimitiveDescription GetPrimitive(uint32_t hash)
 }
 
 template<typename T>
-inline const ClassDescription& GetClassDesc() = delete;
+inline const ClassDescription& GetClass() = delete;
 
 inline const ClassDescription* GetClass(uint32_t hash)
 {
@@ -65,7 +65,7 @@ inline const ClassDescription* GetClass(const char* name)
 }
 
 template<typename T>
-inline const EnumDescription& GetEnumDesc() = delete;
+inline const EnumDescription& GetEnum() = delete;
 
 inline const EnumDescription* GetEnum(uint32_t hash)
 {
@@ -101,13 +101,13 @@ template<typename T, typename = void>
 struct IsClassReflected : std::false_type {};
 
 template<typename T>
-struct IsClassReflected<T, decltype(GetClassDesc<T>(), void())> : std::true_type {};
+struct IsClassReflected<T, decltype(GetClass<T>(), void())> : std::true_type {};
 
 template<typename T, typename = void>
 struct IsEnumReflected : std::false_type {};
 
 template<typename T>
-struct IsEnumReflected<T, decltype(GetEnumDesc<T>(), void())> : std::true_type {};
+struct IsEnumReflected<T, decltype(GetEnum<T>(), void())> : std::true_type {};
 
 template<typename T>
 struct IsReflected : std::bool_constant<
@@ -117,31 +117,5 @@ struct IsReflected : std::bool_constant<
 > {};
 
 } // namespace Traits
-
-template<typename T>
-typename std::enable_if_t<Traits::IsClass<T>::value && (Traits::IsClassReflected<T>::value == true), const ClassDescription&> GetClass()
-{
-	return GetClassDesc<T>();
-}
-
-template<typename T>
-typename std::enable_if_t<Traits::IsClass<T>::value && (Traits::IsClassReflected<T>::value == false), const ClassDescription&> GetClass()
-{
-	static ClassDescription invalidDesc;
-	return invalidDesc;
-}
-
-template<typename T>
-typename std::enable_if_t<Traits::IsEnum<T>::value && (Traits::IsEnumReflected<T>::value == true), const EnumDescription&> GetEnum()
-{
-	return GetEnumDesc<T>();
-}
-
-template<typename T>
-typename std::enable_if_t<Traits::IsEnum<T>::value && (Traits::IsEnumReflected<T>::value == false), const EnumDescription&> GetEnum()
-{
-	static EnumDescription invalidDesc;
-	return invalidDesc;
-}
 
 } // namespace Gleam::Reflection
