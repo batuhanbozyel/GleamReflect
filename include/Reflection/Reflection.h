@@ -51,7 +51,11 @@ inline constexpr PrimitiveDescription GetPrimitive(uint32_t hash)
 }
 
 template<typename T>
-inline const ClassDescription& GetClass() = delete;
+inline const ClassDescription& GetClass()
+{
+	static ClassDescription invalidDesc;
+	return invalidDesc;
+}
 
 inline const ClassDescription* GetClass(uint32_t hash)
 {
@@ -65,7 +69,11 @@ inline const ClassDescription* GetClass(const char* name)
 }
 
 template<typename T>
-inline const EnumDescription& GetEnum() = delete;
+inline const EnumDescription& GetEnum()
+{
+	static EnumDescription invalidDesc;
+	return invalidDesc;
+}
 
 inline const EnumDescription* GetEnum(uint32_t hash)
 {
