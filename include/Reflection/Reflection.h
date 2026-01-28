@@ -119,27 +119,25 @@ struct IsReflected : std::bool_constant<
 } // namespace Traits
 
 template<typename T>
-typename std::enable_if_t<Traits::IsClass<T>::value && (Traits::IsClassReflected<T>::value == true), const ClassDescription&> GetClass()
+inline const ClassDescription& GetClass()
 {
-	return GetClassDesc<T>();
-}
-
-template<typename T>
-typename std::enable_if_t<Traits::IsClass<T>::value && (Traits::IsClassReflected<T>::value == false), const ClassDescription&> GetClass()
-{
+	static_assert(Traits::IsClass<T>::value, "T must be a class type");
+	if constexpr (Traits::IsClassReflected<T>::value)
+	{
+		return GetClassDesc<T>();
+	}
 	static ClassDescription invalidDesc;
 	return invalidDesc;
 }
 
 template<typename T>
-typename std::enable_if_t<Traits::IsEnum<T>::value && (Traits::IsEnumReflected<T>::value == true), const EnumDescription&> GetEnum()
+inline const EnumDescription& GetEnum()
 {
-	return GetEnumDesc<T>();
-}
-
-template<typename T>
-typename std::enable_if_t<Traits::IsEnum<T>::value && (Traits::IsEnumReflected<T>::value == false), const EnumDescription&> GetEnum()
-{
+	static_assert(Traits::IsEnum<T>::value, "T must be a enum type");
+	if constexpr (Traits::IsEnumReflected<T>::value)
+	{
+		return GetEnumDesc<T>();
+	}
 	static EnumDescription invalidDesc;
 	return invalidDesc;
 }
