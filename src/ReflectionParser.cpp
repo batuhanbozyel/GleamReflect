@@ -320,8 +320,9 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		}
 		
 		std::string namespaceName = qualifiedName == name ? "" : qualifiedName.substr(0, qualifiedName.length() - name.length() - 2 /* :: */);
+		ClassType registeredType = ClassType::None;
 		auto externalContext = mContext.EmplaceContext(namespaceName);
-		auto registeredClassHandle = externalContext->GetRegisteredClassInstance(name);
+		auto registeredClassHandle = externalContext->GetRegisteredClassInstance(name, registeredType);
 		if (registeredClassHandle != InvalidMetaIndex)
 		{
 			auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);
@@ -341,9 +342,14 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 			std::lock_guard guard(mWriterMutex);
 			auto qualifiedNameView = mStringWriter.Write(qualifiedName.c_str(), qualifiedName.length());
 			auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-			return externalContext->RegisterClass(Reflection::ClassDescription(
-				{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
-				registeredClassDesc.mSize, registeredClassDesc.mFields, registeredClassDesc.mBaseClasses, templateParams), templateDef);
+			return registeredType == ClassType::Class
+				? externalContext->RegisterClass(Reflection::ClassDescription(
+					{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
+					registeredClassDesc.mSize, registeredClassDesc.mFields, registeredClassDesc.mBaseClasses, templateParams), templateDef)
+				: externalContext->RegisterStruct(Reflection::ClassDescription(
+					{ registeredClassDesc.mName, qualifiedNameView, registeredClassDesc.mAttributes, registeredClassDesc.mGuid, typeHash },
+					registeredClassDesc.mSize, registeredClassDesc.mFields, registeredClassDesc.mBaseClasses, templateParams), templateDef);
+				
 		}
 		return {}; // No annotation attribute, skip processing
 	}
@@ -380,7 +386,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		auto qualifiedClassNameWithoutTemplateDecl = NameWithoutTemplateDeclaration(qualifiedClassNameStr);
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedClassNameStr.c_str());
 
-		auto classHandles = mContext.GetClassHandles(recordGuid);
+		ClassType _ = ClassType::None;
+		auto classHandles = mContext.GetClassHandles(recordGuid, _);
 		if (classHandles.size() > 0)
 		{
 			auto registeredClassName = ResolveString(mContext.GetClass(classHandles[0]).mQualifiedName);
@@ -569,7 +576,9 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
-		auto handle = context->RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDef);
+		auto handle = recordAnnotation.find("GCLASS") != std::string::npos
+			? context->RegisterClass(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDef)
+			: context->RegisterStruct(Reflection::ClassDescription({ className, qualifiedClassName, recordAttribs, recordGuid, typeHash }, classSize, fields, bases, templateParams), templateDef);
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << recordDecl->getName().str() << " GUID already exists" << std::endl;

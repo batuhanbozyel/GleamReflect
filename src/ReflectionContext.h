@@ -15,6 +15,13 @@ namespace Gleam {
 
 class ReflectionParser;
 
+enum class ClassType
+{
+	None,
+	Struct,
+	Class
+};
+
 struct EnumHandle
 {
 	uint32_t index = InvalidMetaIndex;
@@ -71,13 +78,14 @@ public:
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
     ArrayHandle RegisterArray(const Reflection::ArrayDescription& arrayDesc);
     ClassHandle RegisterClass(const Reflection::ClassDescription& classDesc, const std::string& templateDecl);
+	ClassHandle RegisterStruct(const Reflection::ClassDescription& classDesc, const std::string& templateDecl);
     
     EnumHandle GetEnumHandle(uint32_t typeHash) const;
 	EnumHandle GetEnumHandle(const Reflection::Attribute::Guid& guid) const;
 
-	ClassHandle GetClassHandle(uint32_t typeHash) const;
-	ClassHandle GetRegisteredClassInstance(const std::string_view name) const;
-    std::span<const ClassHandle> GetClassHandles(const Reflection::Attribute::Guid& guid) const;
+	ClassHandle GetClassHandle(uint32_t typeHash, ClassType& outType) const;
+	ClassHandle GetRegisteredClassInstance(const std::string_view name, ClassType& outType) const;
+    std::span<const ClassHandle> GetClassHandles(const Reflection::Attribute::Guid& guid, ClassType& outType) const;
     
 	bool Empty() const;
 	bool Contains(const Reflection::Attribute::Guid& guid) const;
@@ -115,6 +123,7 @@ private:
 
     EnumMap mGuidToEnum;
     ClassMap mGuidToClass;
+	ClassMap mGuidToStruct;
     
     std::string mName;
     std::string mQualifiedName;

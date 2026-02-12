@@ -64,19 +64,40 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 			}
 			ss << "\n";
 		}
-        
-        for (const auto& [guid, classes] : mGuidToClass)
-        {
-			for (const auto handle : classes)
+
+		if (mGuidToClass.empty() == false)
+		{
+			for (const auto& [guid, classes] : mGuidToClass)
 			{
-				const auto& classDesc = mClasses[handle];
-				if (classDesc.IsTemplate())
+				for (const auto handle : classes)
 				{
-					continue;
+					const auto& classDesc = mClasses[handle];
+					if (classDesc.IsTemplate())
+					{
+						continue;
+					}
+					ss << "class " << classDesc.ResolveName() << ";\n";
 				}
-				ss << "class " << classDesc.ResolveName() << ";\n";
 			}
-        }
+			ss << "\n";
+		}
+        
+		if (mGuidToStruct.empty() == false)
+		{
+			for (const auto& [guid, classes] : mGuidToStruct)
+			{
+				for (const auto handle : classes)
+				{
+					const auto& classDesc = mClasses[handle];
+					if (classDesc.IsTemplate())
+					{
+						continue;
+					}
+					ss << "struct " << classDesc.ResolveName() << ";\n";
+				}
+			}
+		}
+		
         
         for (const auto context : mContexts)
         {
@@ -114,6 +135,29 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 
     for (const auto& [guid, classes] : mGuidToClass)
     {
+		for (const auto handle : classes)
+		{
+			const auto& classDesc = mClasses[handle];
+
+			std::stringstream classNameSS;
+			classNameSS << classDesc.ResolveName();
+
+			if (classDesc.IsTemplate())
+			{
+				classNameSS << "<" << mClassTemplateDecls[handle] << ">";
+			}
+
+			ss << "template<>\n";
+			ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
+			ss << "{\n";
+			ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
+			ss << "\treturn classes[" << handle << "];\n";
+			ss << "}\n\n";
+		}
+	}
+
+	for (const auto& [guid, classes] : mGuidToStruct)
+	{
 		for (const auto handle : classes)
 		{
 			const auto& classDesc = mClasses[handle];
@@ -218,6 +262,42 @@ REGISTER_CLASS:
     return ClassHandle(index);
 }
 
+ClassHandle ReflectionContext::RegisterStruct(const Reflection::ClassDescription& classDesc, const std::string& templateDecl)
+{
+	std::lock_guard guard(mClassMutex);
+
+	auto it = mGuidToStruct.find(classDesc.Guid());
+	if (it != mGuidToStruct.end())
+	{
+		for (const auto handle : it->second)
+		{
+			if (mClasses[handle].TypeHash() == classDesc.TypeHash())
+			{
+				return handle;
+			}
+		}
+
+		if (not it->second.empty())
+		{
+			if (mParser->InstanceOfSameType(mClasses[it->second[0]], classDesc))
+			{
+				goto REGISTER_STRUCT;
+			}
+		}
+		// ASSERT duplicate guid
+		return {};
+	}
+
+REGISTER_STRUCT:
+	uint32_t index = static_cast<uint32_t>(mClasses.size());
+	auto& guidToStruct = mGuidToStruct[classDesc.Guid()];
+	guidToStruct.emplace_back(index);
+	mClasses.emplace_back(classDesc);
+	mClassTemplateDecls.emplace_back(templateDecl);
+	mTypeHashMap.emplace_hint(mTypeHashMap.end(), classDesc.TypeHash(), index);
+	return ClassHandle(index);
+}
+
 EnumHandle ReflectionContext::RegisterEnum(const Reflection::EnumDescription& enumDesc)
 {
 	std::lock_guard guard(mEnumMutex);
@@ -240,7 +320,7 @@ EnumHandle ReflectionContext::RegisterEnum(const Reflection::EnumDescription& en
     return EnumHandle(index);
 }
 
-ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash) const
+ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash, ClassType& outType) const
 {
 	{
 		std::lock_guard guard(mClassMutex);
@@ -251,6 +331,20 @@ ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash) const
 				const auto& classDesc = mClasses[handle];
 				if (classDesc.TypeHash() == typeHash)
 				{
+					outType = ClassType::Class;
+					return handle;
+				}
+			}
+		}
+
+		for (const auto& [guid, handles] : mGuidToStruct)
+		{
+			for (auto handle : handles)
+			{
+				const auto& classDesc = mClasses[handle];
+				if (classDesc.TypeHash() == typeHash)
+				{
+					outType = ClassType::Struct;
 					return handle;
 				}
 			}
@@ -259,7 +353,7 @@ ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash) const
 
 	for (const auto context : mContexts)
 	{
-		auto handle = context->GetClassHandle(typeHash);
+		auto handle = context->GetClassHandle(typeHash, outType);
 		if (handle != InvalidMetaIndex)
 		{
 			return handle;
@@ -269,7 +363,7 @@ ClassHandle ReflectionContext::GetClassHandle(uint32_t typeHash) const
 	return ClassHandle(InvalidMetaIndex);
 }
 
-ClassHandle ReflectionContext::GetRegisteredClassInstance(const std::string_view name) const
+ClassHandle ReflectionContext::GetRegisteredClassInstance(const std::string_view name, ClassType& outType) const
 {
 	// Since name is local to the context
 	// we only need to look for the current context if it exists
@@ -280,6 +374,17 @@ ClassHandle ReflectionContext::GetRegisteredClassInstance(const std::string_view
 			const auto& registeredClassDesc = mClasses[classHandles[0]];
 			if (mParser->NameWithoutTemplateDeclaration(name) == mParser->NameWithoutTemplateDeclaration(mParser->ResolveString(registeredClassDesc.mName)))
 			{
+				outType = ClassType::Class;
+				return classHandles[0];
+			}
+		}
+
+		for (const auto& [guid, classHandles] : mGuidToStruct)
+		{
+			const auto& registeredClassDesc = mClasses[classHandles[0]];
+			if (mParser->NameWithoutTemplateDeclaration(name) == mParser->NameWithoutTemplateDeclaration(mParser->ResolveString(registeredClassDesc.mName)))
+			{
+				outType = ClassType::Struct;
 				return classHandles[0];
 			}
 		}
@@ -287,24 +392,33 @@ ClassHandle ReflectionContext::GetRegisteredClassInstance(const std::string_view
 	return ClassHandle(InvalidMetaIndex);
 }
 
-std::span<const ClassHandle> ReflectionContext::GetClassHandles(const Reflection::Attribute::Guid& guid) const
+std::span<const ClassHandle> ReflectionContext::GetClassHandles(const Reflection::Attribute::Guid& guid, ClassType& outType) const
 {
 	std::lock_guard guard(mClassMutex);
 
     auto it = mGuidToClass.find(guid);
-    if (it == mGuidToClass.end())
-    {
-        for (const auto context : mContexts)
-        {
-            const auto& handles = context->GetClassHandles(guid);
-			if (handles.size() > 0)
-			{
-				return handles;
-			}
-        }
-		return {};
-    }
-    return std::span{ it->second.data(), it->second.size() };
+	if (it != mGuidToClass.end())
+	{
+		outType = ClassType::Class;
+		return std::span{ it->second.data(), it->second.size() };
+	}
+
+	it = mGuidToStruct.find(guid);
+	if (it != mGuidToStruct.end())
+	{
+		outType = ClassType::Struct;
+		return std::span{ it->second.data(), it->second.size() };
+	}
+
+	for (const auto context : mContexts)
+	{
+		const auto& handles = context->GetClassHandles(guid, outType);
+		if (handles.size() > 0)
+		{
+			return handles;
+		}
+	}
+	return {};
 }
 
 EnumHandle ReflectionContext::GetEnumHandle(uint32_t typeHash) const
@@ -358,7 +472,7 @@ bool ReflectionContext::Empty() const
 	{
 		std::lock_guard enumGuard(mEnumMutex);
 		std::lock_guard classGuard(mClassMutex);
-		if ((mGuidToEnum.empty() && mGuidToClass.empty()) == false)
+		if ((mGuidToEnum.empty() && mGuidToClass.empty() && mGuidToStruct.empty()) == false)
 		{
 			return false;
 		}
@@ -387,6 +501,11 @@ bool ReflectionContext::Contains(const Reflection::Attribute::Guid& guid) const
 	{
 		std::lock_guard guard(mClassMutex);
 		if (mGuidToClass.contains(guid))
+		{
+			return true;
+		}
+
+		if (mGuidToStruct.contains(guid))
 		{
 			return true;
 		}
@@ -458,6 +577,18 @@ const Reflection::ClassDescription& ReflectionContext::GetClass(uint32_t typeHas
 	{
 		std::lock_guard guard(mClassMutex);
 		for (const auto& [guid, handles] : mGuidToClass)
+		{
+			for (const auto handle : handles)
+			{
+				const auto& classDesc = mClasses[handle];
+				if (classDesc.TypeHash() == typeHash)
+				{
+					return classDesc;
+				}
+			}
+		}
+
+		for (const auto& [guid, handles] : mGuidToStruct)
 		{
 			for (const auto handle : handles)
 			{
