@@ -206,6 +206,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 		auto& astContext = enumDecl->getASTContext();
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedNameStr.c_str());
 		size_t enumSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
+		auto underlyingType = static_cast<Reflection::PrimitiveType>(BuiltinTypeHash(enumDecl->getIntegerType()->getAs<clang::BuiltinType>()));
 
 		if (const auto enumHandle = mContext.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
 		{
@@ -269,7 +270,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 		auto name = mStringWriter.Write(nameStr.data(), nameStr.size());
 		auto qualifiedName = mStringWriter.Write(qualifiedNameStr.data(), qualifiedNameStr.size());
         auto cases = mObjectWriter.Write(enumCases.data(), enumCases.size() * sizeof(Reflection::EnumCaseDescription));
-        auto handle = context->RegisterEnum(Reflection::EnumDescription({ name, qualifiedName, attributes, guid, typeHash }, enumSize, cases));
+        auto handle = context->RegisterEnum(Reflection::EnumDescription({ name, qualifiedName, attributes, guid, typeHash }, enumSize, underlyingType, cases));
 		if (handle == InvalidMetaIndex)
 		{
 			std::cerr << enumDecl->getName().str() << " GUID already exists" << std::endl;

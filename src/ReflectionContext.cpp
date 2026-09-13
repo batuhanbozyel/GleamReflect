@@ -60,7 +60,8 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 			for (const auto& [guid, handle] : mGuidToEnum)
 			{
 				const auto& enumDesc = mEnums[handle];
-				ss << "enum class " << enumDesc.ResolveName() << ";\n";
+				ss << "enum class " << enumDesc.ResolveName() << " : "
+				   << Reflection::PrimitiveDescription(enumDesc.UnderlyingType()).ResolveName() << ";\n";
 			}
 			ss << "\n";
 		}

@@ -306,10 +306,11 @@ public:
 
 	EnumDescription() = default;
     
-	EnumDescription(const MetaDescription& meta, size_t size, const BufferView& cases)
+	EnumDescription(const MetaDescription& meta, size_t size, PrimitiveType underlyingType, const BufferView& cases)
 		: MetaDescription(meta)
 		, mSize(size)
 		, mCases(cases)
+		, mUnderlyingType(underlyingType)
     {
         
     }
@@ -317,6 +318,11 @@ public:
     size_t GetSize() const
     {
         return mSize;
+    }
+
+    PrimitiveType UnderlyingType() const
+    {
+        return mUnderlyingType;
     }
     
     auto Cases() const
@@ -329,6 +335,7 @@ private:
     
     size_t mSize = 0;
     BufferView mCases = {};
+    PrimitiveType mUnderlyingType = PrimitiveType::Invalid;
 };
 
 class ClassDescription : public MetaDescription
