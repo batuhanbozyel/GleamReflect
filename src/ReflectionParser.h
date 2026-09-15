@@ -30,6 +30,8 @@ public:
 						const std::filesystem::path& headerDir, 
 						const std::filesystem::path& binaryDir);
 
+	void SetExternalTypes(std::unordered_set<uint32_t>&& types);
+
 	std::string_view NameWithoutTemplateDeclaration(const std::string_view name) const;
 	bool InstanceOfSameType(const Reflection::ClassDescription& lhs, const Reflection::ClassDescription& rhs) const;
 

@@ -1,4 +1,6 @@
 #include "ReflectionParser.h"
+#include "ReflectionLinker.h"
+#include "Reflection/Database.h"
 
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -125,14 +127,90 @@ static llvm::cl::opt<std::string> BinaryDir("binary-dir",
                                             llvm::cl::Required,
                                             llvm::cl::cat(ReflectionToolCategory));
 
+static llvm::cl::list<std::string> Dependencies("dependency",
+                                                llvm::cl::desc("Reflection database of a module this one depends on, its types are referenced but not redeclared"),
+                                                llvm::cl::value_desc("path"),
+                                                llvm::cl::ZeroOrMore,
+                                                llvm::cl::cat(ReflectionToolCategory));
+
 static llvm::cl::opt<bool> LogTrace("log-trace",
 									llvm::cl::desc("Enable logging trace"),
 									llvm::cl::value_desc("log"),
 									llvm::cl::Optional,
 									llvm::cl::cat(ReflectionToolCategory));
 
+static bool RunLinkMode(int argc, const char** argv, int& outResult)
+{
+	std::vector<std::filesystem::path> inputs;
+	std::filesystem::path output;
+	bool linkMode = false;
+
+	for (int i = 1; i < argc; ++i)
+	{
+		const std::string_view arg = argv[i];
+		if (arg == "--link")
+		{
+			linkMode = true;
+		}
+		else if (arg.starts_with("--output="))
+		{
+			output = arg.substr(std::strlen("--output="));
+		}
+		else if (arg.starts_with("--") == false)
+		{
+			inputs.emplace_back(arg);
+		}
+	}
+
+	if (linkMode == false)
+	{
+		return false;
+	}
+
+	if (output.empty())
+	{
+		llvm::errs() << "Link mode requires --output=<path>\n";
+		outResult = 1;
+		return true;
+	}
+
+	Gleam::ReflectionLinker linker;
+	outResult = linker.Link(inputs, output) ? 0 : 1;
+	return true;
+}
+
+static bool CollectExternalTypes(std::unordered_set<uint32_t>& outTypes)
+{
+	for (const auto& dependency : Dependencies)
+	{
+		Gleam::Reflection::Database database;
+		if (database.Initialize(dependency) == false)
+		{
+			llvm::errs() << "Failed to load dependency database: " << dependency << "\n";
+			return false;
+		}
+
+		for (const auto& classDesc : database.GetClasses())
+		{
+			outTypes.insert(classDesc.TypeHash());
+		}
+
+		for (const auto& enumDesc : database.GetEnums())
+		{
+			outTypes.insert(enumDesc.TypeHash());
+		}
+		database.Shutdown();
+	}
+	return true;
+}
+
 int main(int argc, const char **argv)
 {
+	if (int result = 0; RunLinkMode(argc, argv, result))
+	{
+		return result;
+	}
+
     auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, ReflectionToolCategory);
     if (!optionsParser)
     {
@@ -171,7 +249,14 @@ int main(int argc, const char **argv)
 		llvm::outs().flush();
 	}
 	
+	std::unordered_set<uint32_t> externalTypes;
+	if (CollectExternalTypes(externalTypes) == false)
+	{
+		return 1;
+	}
+
 	ReflectionParser reflectionParser;
+	reflectionParser.SetExternalTypes(std::move(externalTypes));
 	std::pair<std::unique_ptr<clang::tooling::FrontendActionFactory>, clang::tooling::ArgumentsAdjuster> frontend = std::pair{std::make_unique<ReflectionFrontendActionFactory>(reflectionParser), adjuster};
 	llvm::Error err = executor.execute(llvm::ArrayRef<decltype(frontend)>(frontend));
 	if (err)

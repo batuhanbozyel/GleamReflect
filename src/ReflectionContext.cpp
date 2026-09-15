@@ -60,6 +60,10 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 			for (const auto& [guid, handle] : mGuidToEnum)
 			{
 				const auto& enumDesc = mEnums[handle];
+				if (IsExternal(enumDesc.TypeHash()))
+				{
+					continue;
+				}
 				ss << "enum class " << enumDesc.ResolveName() << " : "
 				   << Reflection::PrimitiveDescription(enumDesc.UnderlyingType()).ResolveName() << ";\n";
 			}
@@ -73,7 +77,7 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 				for (const auto handle : classes)
 				{
 					const auto& classDesc = mClasses[handle];
-					if (classDesc.IsTemplate())
+					if (classDesc.IsTemplate() or IsExternal(classDesc.TypeHash()))
 					{
 						continue;
 					}
@@ -90,7 +94,7 @@ void ReflectionContext::GenerateForwardDecls(std::stringstream& ss) const
 				for (const auto handle : classes)
 				{
 					const auto& classDesc = mClasses[handle];
-					if (classDesc.IsTemplate())
+					if (classDesc.IsTemplate() or IsExternal(classDesc.TypeHash()))
 					{
 						continue;
 					}
@@ -126,11 +130,15 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 	for (const auto& [guid, handle] : mGuidToEnum)
 	{
 		const auto& enumDesc = mEnums[handle];
+		if (IsExternal(enumDesc.TypeHash()))
+		{
+			continue;
+		}
 		ss << "template<>\n";
 		ss << "inline const EnumDescription& GetEnum<" << mQualifiedName << "::" << enumDesc.ResolveName() << ">()\n";
 		ss << "{\n";
-		ss << "\tstatic const auto enums = IDatabase::GetInstance()->GetEnums();\n";
-		ss << "\treturn enums[" << handle << "];\n";
+		ss << "\tstatic const auto& enumDesc = *IDatabase::GetInstance()->GetEnum(" << enumDesc.TypeHash() << "u);\n";
+		ss << "\treturn enumDesc;\n";
 		ss << "}\n\n";
 	}
 
@@ -139,6 +147,10 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 		for (const auto handle : classes)
 		{
 			const auto& classDesc = mClasses[handle];
+			if (IsExternal(classDesc.TypeHash()))
+			{
+				continue;
+			}
 
 			std::stringstream classNameSS;
 			classNameSS << classDesc.ResolveName();
@@ -151,8 +163,8 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 			ss << "template<>\n";
 			ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
 			ss << "{\n";
-			ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
-			ss << "\treturn classes[" << handle << "];\n";
+			ss << "\tstatic const auto& classDesc = *IDatabase::GetInstance()->GetClass(" << classDesc.TypeHash() << "u);\n";
+			ss << "\treturn classDesc;\n";
 			ss << "}\n\n";
 		}
 	}
@@ -162,6 +174,10 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 		for (const auto handle : classes)
 		{
 			const auto& classDesc = mClasses[handle];
+			if (IsExternal(classDesc.TypeHash()))
+			{
+				continue;
+			}
 
 			std::stringstream classNameSS;
 			classNameSS << classDesc.ResolveName();
@@ -174,8 +190,8 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 			ss << "template<>\n";
 			ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
 			ss << "{\n";
-			ss << "\tstatic const auto classes = IDatabase::GetInstance()->GetClasses();\n";
-			ss << "\treturn classes[" << handle << "];\n";
+			ss << "\tstatic const auto& classDesc = *IDatabase::GetInstance()->GetClass(" << classDesc.TypeHash() << "u);\n";
+			ss << "\treturn classDesc;\n";
 			ss << "}\n\n";
 		}
 	}

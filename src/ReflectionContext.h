@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 #define InvalidMetaIndex ~0u
 
@@ -73,6 +74,16 @@ public:
 	void GenerateForwardDecls(std::stringstream& ss) const;
     void GenerateMetaDescs(std::stringstream& ss) const;
 
+	static void SetExternalTypes(std::unordered_set<uint32_t>&& types)
+	{
+		mExternalTypes = std::move(types);
+	}
+
+	static bool IsExternal(uint32_t typeHash)
+	{
+		return mExternalTypes.contains(typeHash);
+	}
+
     ReflectionContext* EmplaceContext(const std::string& qualifiedName);
     
     EnumHandle RegisterEnum(const Reflection::EnumDescription& enumDesc);
@@ -135,6 +146,7 @@ private:
 	static inline ArrayList mArrays = {};
 	static inline TypeHashMap mTypeHashMap = {};
 	static inline ClassTemplateDeclList mClassTemplateDecls = {};
+	static inline std::unordered_set<uint32_t> mExternalTypes = {};
 };
 
 } // namespace Gleam

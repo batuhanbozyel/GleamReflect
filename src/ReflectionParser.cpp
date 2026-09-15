@@ -18,6 +18,11 @@ ReflectionParser::ReflectionParser()
     
 }
 
+void ReflectionParser::SetExternalTypes(std::unordered_set<uint32_t>&& types)
+{
+	ReflectionContext::SetExternalTypes(std::move(types));
+}
+
 void ReflectionParser::ParseAST(clang::ASTContext& context)
 {
     ParseDecls(context.getTranslationUnitDecl()->decls());
@@ -85,9 +90,6 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
         Reflection::BinaryWriter writer(bufferSize);
 		Reflection::DatabaseHeader header = {};
         header.version = GLEAM_REFLECTION_VERSION;
-        header.classCount = static_cast<uint32_t>(classes.size());
-        header.enumCount = static_cast<uint32_t>(enums.size());
-		header.arrayCount = static_cast<uint32_t>(arrays.size());
 		memcpy(header.magic, "GLEAMREF", sizeof(header.magic));
         writer.Write(header);
 
@@ -96,13 +98,28 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
         
         auto serializedHeader = static_cast<Reflection::DatabaseHeader*>(writer.GetBuffer().data);
         serializedHeader->classTableOffset = writer.GetCursor();
-        writer.Write(classes.data(), classes.size() * sizeof(Reflection::ClassDescription));
+        for (const auto& classDesc : classes)
+        {
+			if (ReflectionContext::IsExternal(classDesc.TypeHash()) == false)
+			{
+				writer.Write(&classDesc, sizeof(Reflection::ClassDescription));
+				++serializedHeader->classCount;
+			}
+        }
         
         serializedHeader->enumTableOffset = writer.GetCursor();
-        writer.Write(enums.data(), enums.size() * sizeof(Reflection::EnumDescription));
+        for (const auto& enumDesc : enums)
+        {
+			if (ReflectionContext::IsExternal(enumDesc.TypeHash()) == false)
+			{
+				writer.Write(&enumDesc, sizeof(Reflection::EnumDescription));
+				++serializedHeader->enumCount;
+			}
+        }
 
 		serializedHeader->arrayTableOffset = writer.GetCursor();
 		writer.Write(arrays.data(), arrays.size() * sizeof(Reflection::ArrayDescription));
+		serializedHeader->arrayCount = static_cast<uint32_t>(arrays.size());
 
 		const auto& stringBuffer = mStringWriter.GetBuffer();
 		serializedHeader->stringTableOffset = writer.GetCursor();
@@ -409,8 +426,8 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 			}
 		}
 		
-        // Process bases
-		std::vector<ClassHandle> baseClasses;
+        // Process bases, stored as type hashes so a base can live in another module
+		std::vector<uint32_t> baseClasses;
         for (const auto& base : recordDecl->bases())
         {
             const auto baseRecord = base.getType()->getAsCXXRecordDecl();
@@ -419,7 +436,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
                 auto baseHandle = HandleRecordDecl(baseRecord);
                 if (baseHandle != InvalidMetaIndex)
                 {
-                    baseClasses.emplace_back(baseHandle);
+                    baseClasses.emplace_back(mContext.GetClass(baseHandle).TypeHash());
                 }
             }
         }
@@ -574,7 +591,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		size_t classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
 		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
 		auto qualifiedClassName = mStringWriter.Write(qualifiedClassNameStr.data(), qualifiedClassNameStr.size());
-		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(ClassHandle));
+		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(uint32_t));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
 		auto handle = recordAnnotation.find("GCLASS") != std::string::npos

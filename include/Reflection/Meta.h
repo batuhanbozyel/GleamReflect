@@ -11,6 +11,7 @@
 namespace Gleam {
 class ReflectionParser;
 class ReflectionContext;
+class ReflectionLinker;
 } // namespace Gleam
 
 namespace Gleam::Reflection {
@@ -148,6 +149,7 @@ class MetaDescription
 {
 	friend class Gleam::ReflectionParser;
 	friend class Gleam::ReflectionContext;
+	friend class Gleam::ReflectionLinker;
 public:
 
 	MetaDescription() = default;
@@ -302,6 +304,7 @@ private:
 
 class EnumDescription : public MetaDescription
 {
+	friend class Gleam::ReflectionLinker;
 public:
 
 	EnumDescription() = default;
@@ -338,10 +341,99 @@ private:
     PrimitiveType mUnderlyingType = PrimitiveType::Invalid;
 };
 
+class BaseClassView
+{
+public:
+
+	class Iterator
+	{
+	public:
+		using iterator_category = std::forward_iterator_tag;
+		using value_type = ClassDescription;
+		using difference_type = std::ptrdiff_t;
+		using pointer = const ClassDescription*;
+		using reference = const ClassDescription&;
+
+		explicit Iterator(const uint32_t* hash)
+			: mHash(hash)
+		{
+
+		}
+
+		reference operator*() const
+		{
+			return *IDatabase::GetInstance()->GetClass(*mHash);
+		}
+
+		pointer operator->() const
+		{
+			return IDatabase::GetInstance()->GetClass(*mHash);
+		}
+
+		Iterator& operator++()
+		{
+			++mHash;
+			return *this;
+		}
+
+		bool operator==(const Iterator& other) const
+		{
+			return mHash == other.mHash;
+		}
+
+		bool operator!=(const Iterator& other) const
+		{
+			return mHash != other.mHash;
+		}
+
+	private:
+
+		const uint32_t* mHash = nullptr;
+	};
+
+	BaseClassView(const uint32_t* hashes, size_t size)
+		: mHashes(hashes)
+		, mSize(size)
+	{
+
+	}
+
+	const ClassDescription& operator[](size_t pos) const
+	{
+		return *IDatabase::GetInstance()->GetClass(mHashes[pos]);
+	}
+
+	size_t size() const
+	{
+		return mSize;
+	}
+
+	bool empty() const
+	{
+		return mSize == 0;
+	}
+
+	Iterator begin() const
+	{
+		return Iterator(mHashes);
+	}
+
+	Iterator end() const
+	{
+		return Iterator(mHashes + mSize);
+	}
+
+private:
+
+	const uint32_t* mHashes = nullptr;
+	size_t mSize = 0;
+};
+
 class ClassDescription : public MetaDescription
 {
 	friend class Gleam::ReflectionParser;
 	friend class Gleam::ReflectionContext;
+	friend class Gleam::ReflectionLinker;
 public:
     
 	ClassDescription() = default;
@@ -365,9 +457,7 @@ public:
     auto ResolveBaseClasses() const
     {
 		const auto ptr = IDatabase::GetInstance()->GetObject<uint32_t>(mBaseClasses);
-		auto indices = DenseArrayView{ ptr, mBaseClasses.size / sizeof(uint32_t) };
-        auto classes = IDatabase::GetInstance()->GetClasses();
-        return SparseArrayView{ classes.data(), indices };
+		return BaseClassView{ ptr, mBaseClasses.size / sizeof(uint32_t) };
 	}
 
 	auto ResolveTemplateParameters() const
