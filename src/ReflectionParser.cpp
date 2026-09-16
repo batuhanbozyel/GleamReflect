@@ -222,7 +222,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
 
 		auto& astContext = enumDecl->getASTContext();
 		uint32_t typeHash = Reflection::Utils::HashString(qualifiedNameStr.c_str());
-		size_t enumSize = astContext.getTypeSize(astContext.getEnumType(enumDecl)) / 8ul; // Convert bits to bytes
+		size_t enumSize = astContext.getTypeSize(astContext.getCanonicalTagType(enumDecl)) / 8ul; // Convert bits to bytes
 		auto underlyingType = static_cast<Reflection::PrimitiveType>(BuiltinTypeHash(enumDecl->getIntegerType()->getAs<clang::BuiltinType>()));
 
 		if (const auto enumHandle = mContext.GetEnumHandle(guid); enumHandle != InvalidMetaIndex)
@@ -383,7 +383,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 			return {};
 		}
 		auto& astContext = recordDecl->getASTContext();
-		auto recordType = astContext.getRecordType(recordDecl);
+		auto recordType = astContext.getCanonicalTagType(recordDecl);
 
 		// Process template parameters
 		auto templateParamDescs = ExtractTemplateParameterDescriptions(recordDecl);

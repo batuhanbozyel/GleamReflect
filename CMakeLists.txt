@@ -51,6 +51,49 @@ project(GleamReflect)
             set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_SCHEME_EXECUTABLE CppReflection)
         endif()
 
+        # Prebuilt LLVM distributions are compiled with zlib/zstd/libxml2 support, so
+        # their exported targets reference imported targets that a bare machine does
+        # not provide. zlib and zstd are real link dependencies of LLVMSupport, so
+        # build them from source when the host has no installation; libxml2 is only
+        # referenced through the link interface and never pulled in, so a stub is
+        # enough there. All of this has to happen before find_package(LLVM).
+        include(FetchContent)
+
+        if (NOT TARGET ZLIB::ZLIB)
+            set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+            FetchContent_Declare(zlib
+                GIT_REPOSITORY https://github.com/madler/zlib.git
+                GIT_TAG v1.3.1
+                GIT_SHALLOW TRUE
+                EXCLUDE_FROM_ALL
+            )
+            FetchContent_MakeAvailable(zlib)
+            add_library(ZLIB::ZLIB ALIAS zlibstatic)
+        endif()
+
+        if (NOT TARGET zstd::libzstd_static)
+            set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+            set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            set(ZSTD_LEGACY_SUPPORT OFF CACHE BOOL "" FORCE)
+            FetchContent_Declare(zstd
+                GIT_REPOSITORY https://github.com/facebook/zstd.git
+                GIT_TAG v1.5.6
+                GIT_SHALLOW TRUE
+                SOURCE_SUBDIR build/cmake
+                EXCLUDE_FROM_ALL
+            )
+            FetchContent_MakeAvailable(zstd)
+            if (NOT TARGET zstd::libzstd_static)
+                add_library(zstd::libzstd_static ALIAS libzstd_static)
+            endif()
+        endif()
+
+        if (NOT TARGET LibXml2::LibXml2)
+            add_library(LibXml2::LibXml2 INTERFACE IMPORTED)
+        endif()
+
         # Configure LLVM
         set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra" CACHE STRING "List of LLVM projects to build")
         find_package(LLVM REQUIRED CONFIG)
@@ -85,22 +128,25 @@ project(GleamReflect)
 
         source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
 
-        if (APPLE)
-            set_target_properties(AArch64TargetParserTableGen
-                acc_gen
-                ARMTargetParserTableGen
-                clang-tablegen-targets
-                intrinsics_gen
-                omp_gen
-                RISCVTargetParserTableGen PROPERTIES FOLDER Dependencies)
-        else()
-            set_target_properties(AArch64TargetParserTableGen
-                acc_gen
-                ARMTargetParserTableGen
-                clang-tablegen-targets
-                intrinsics_gen
-                omp_gen
-                RISCVTargetParserTableGen
-                vt_gen PROPERTIES FOLDER Dependencies)
-        endif()
+        # Tidy up the third party and LLVM/Clang tablegen helper targets into a
+        # folder. The tablegen ones only exist when configuring against an LLVM build
+        # tree, so skip any that a prebuilt LLVM installation does not define.
+        set(DEPENDENCY_TARGETS
+            zlibstatic
+            zlib
+            libzstd_static
+            AArch64TargetParserTableGen
+            acc_gen
+            ARMTargetParserTableGen
+            clang-tablegen-targets
+            intrinsics_gen
+            omp_gen
+            RISCVTargetParserTableGen
+            vt_gen
+        )
+        foreach (DEPENDENCY_TARGET ${DEPENDENCY_TARGETS})
+            if (TARGET ${DEPENDENCY_TARGET})
+                set_target_properties(${DEPENDENCY_TARGET} PROPERTIES FOLDER Dependencies)
+            endif()
+        endforeach()
     endif()
