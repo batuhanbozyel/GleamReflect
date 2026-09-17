@@ -103,23 +103,36 @@ project(GleamReflect)
         include(AddLLVM)
         include(AddClang)
 
-        llvm_map_components_to_libnames(LLVM_LIBS support core frontendopenmp)
+        # Prefer the combined shared libraries when the LLVM installation ships
+        # them. Homebrew's libclangDriver.a holds two distinct members both named
+        # AMDGPU.cpp.o (Arch/AMDGPU.cpp and ToolChains/AMDGPU.cpp) and the archive
+        # index only records one of them, so linking the static clang libraries
+        # leaves the shadowed member's symbols undefined.
+        if (TARGET clang-cpp AND TARGET LLVM)
+            set(LLVM_LIBS LLVM)
+            set(CLANG_LIBS clang-cpp)
+        else()
+            llvm_map_components_to_libnames(LLVM_LIBS support core frontendopenmp)
+            set(CLANG_LIBS
+                clangAST
+                clangASTMatchers
+                clangBasic
+                clangFrontend
+                clangSerialization
+                clangTooling
+            )
+        endif()
+
         message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
         message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
         message(STATUS "LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
         message(STATUS "LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR}")
         message(STATUS "LLVM_LIBS: ${LLVM_LIBS}")
+        message(STATUS "CLANG_LIBS: ${CLANG_LIBS}")
 
         add_executable(CppReflection ${SOURCE_FILES} ${INCLUDE_FILES})
         target_link_directories(CppReflection PRIVATE ${LLVM_LIBRARY_DIR})
-        target_link_libraries(CppReflection PRIVATE ${LLVM_LIBS}
-            clangAST
-            clangASTMatchers
-            clangBasic
-            clangFrontend
-            clangSerialization
-            clangTooling
-        )
+        target_link_libraries(CppReflection PRIVATE ${LLVM_LIBS} ${CLANG_LIBS})
         target_include_directories(CppReflection PRIVATE ${LLVM_INCLUDE_DIRS}
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/src

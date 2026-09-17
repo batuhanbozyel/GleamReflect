@@ -6,6 +6,7 @@
 #include <string>
 #include <regex>
 #include <ios>
+#include <ostream>
 
 namespace Gleam::Reflection {
 
