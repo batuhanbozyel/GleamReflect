@@ -4,6 +4,8 @@
 
 #include <filesystem>
 #include <vector>
+#include <map>
+#include <string_view>
 
 namespace Gleam {
 
@@ -11,9 +13,11 @@ class ReflectionLinker
 {
 public:
 
-	bool Link(const std::vector<std::filesystem::path>& inputs, const std::filesystem::path& output);
+	bool Link(const std::vector<std::filesystem::path>& inputs, const std::filesystem::path& output, const std::filesystem::path& natvis);
 
 private:
+
+	using AttributeTypeMap = std::map<uint32_t, std::pair<Reflection::AttributeTypeDescription, std::string_view>>;
 
 	struct Module
 	{
@@ -44,6 +48,8 @@ private:
 	static void PatchClass(Reflection::ClassDescription& classDesc, char* objects, size_t objectBase, size_t stringBase);
 
 	static void PatchEnum(Reflection::EnumDescription& enumDesc, char* objects, size_t objectBase, size_t stringBase);
+
+	static bool WriteNatvis(const std::filesystem::path& path, const AttributeTypeMap& attributeTypes);
 };
 
 } // namespace Gleam

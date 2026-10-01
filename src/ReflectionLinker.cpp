@@ -86,7 +86,7 @@ void ReflectionLinker::PatchEnum(Reflection::EnumDescription& enumDesc, char* ob
 	}
 }
 
-bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, const std::filesystem::path& output)
+bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, const std::filesystem::path& output, const std::filesystem::path& natvis)
 {
 	if (inputs.empty())
 	{
@@ -108,6 +108,7 @@ bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, co
 	uint32_t classCount = 0;
 	uint32_t enumCount = 0;
 	uint32_t arrayCount = 0;
+	AttributeTypeMap attributeTypes;
 	for (auto& module : modules)
 	{
 		module.objectBase = objectTotal;
@@ -118,6 +119,20 @@ bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, co
 		classCount += module.Header()->classCount;
 		enumCount += module.Header()->enumCount;
 		arrayCount += module.Header()->arrayCount;
+
+		const auto moduleHeader = module.Header();
+		const auto moduleAttributeTypes = reinterpret_cast<const Reflection::AttributeTypeDescription*>(module.data.data() + moduleHeader->attributeTypeTableOffset);
+		for (uint32_t i = 0; i < moduleHeader->attributeTypeCount; ++i)
+		{
+			auto attributeType = moduleAttributeTypes[i];
+			const std::string_view name(module.data.data() + moduleHeader->stringTableOffset + attributeType.qualifiedName.offset, attributeType.qualifiedName.size);
+			attributeType.qualifiedName.offset += module.stringBase;
+			auto [it, inserted] = attributeTypes.emplace(attributeType.hash, std::pair{ attributeType, name });
+			if (inserted == false and it->second.second != name)
+			{
+				std::cerr << it->second.second << " and " << name << " attributes have the same hash" << std::endl;
+			}
+		}
 	}
 
 	Reflection::DatabaseHeader header = {};
@@ -126,10 +141,12 @@ bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, co
 	header.classCount = classCount;
 	header.enumCount = enumCount;
 	header.arrayCount = arrayCount;
+	header.attributeTypeCount = static_cast<uint32_t>(attributeTypes.size());
 	header.classTableOffset = sizeof(Reflection::DatabaseHeader) + objectTotal;
 	header.enumTableOffset = header.classTableOffset + classCount * sizeof(Reflection::ClassDescription);
 	header.arrayTableOffset = header.enumTableOffset + enumCount * sizeof(Reflection::EnumDescription);
-	header.stringTableOffset = header.arrayTableOffset + arrayCount * sizeof(Reflection::ArrayDescription);
+	header.attributeTypeTableOffset = header.arrayTableOffset + arrayCount * sizeof(Reflection::ArrayDescription);
+	header.stringTableOffset = header.attributeTypeTableOffset + header.attributeTypeCount * sizeof(Reflection::AttributeTypeDescription);
 
 	std::vector<char> buffer(header.stringTableOffset + stringTotal);
 	memcpy(buffer.data(), &header, sizeof(Reflection::DatabaseHeader));
@@ -181,6 +198,12 @@ bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, co
 		}
 	}
 
+	auto linkedAttributeTypes = reinterpret_cast<Reflection::AttributeTypeDescription*>(buffer.data() + header.attributeTypeTableOffset);
+	for (const auto& [hash, attributeType] : attributeTypes)
+	{
+		*linkedAttributeTypes++ = attributeType.first;
+	}
+
 	auto linkedClasses = reinterpret_cast<const Reflection::ClassDescription*>(buffer.data() + header.classTableOffset);
 	auto linkedEnums = reinterpret_cast<const Reflection::EnumDescription*>(buffer.data() + header.enumTableOffset);
 	for (uint32_t i = 0; i < classCount; ++i)
@@ -207,5 +230,68 @@ bool ReflectionLinker::Link(const std::vector<std::filesystem::path>& inputs, co
 		return false;
 	}
 	file.write(buffer.data(), buffer.size());
+	file.close();
+
+	if (natvis.empty())
+	{
+		return true;
+	}
+	return WriteNatvis(natvis, attributeTypes);
+}
+
+bool ReflectionLinker::WriteNatvis(const std::filesystem::path& path, const AttributeTypeMap& attributeTypes)
+{
+	std::ofstream file(path, std::ios::out | std::ios::trunc);
+	if (not file.is_open())
+	{
+		std::cerr << "Failed to write reflection natvis: " << path << std::endl;
+		return false;
+	}
+
+	file << R"natvis(<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="Gleam::Reflection::MetaDescription">
+    <Intrinsic Name="Buffer" Expression="(char*)Gleam::Reflection::IDatabase::sInstance-&gt;mBuffer.data"/>
+    <Intrinsic Name="Strings" Expression="Buffer() + ((Gleam::Reflection::DatabaseHeader*)Buffer())-&gt;stringTableOffset"/>
+    <Intrinsic Name="Objects" Expression="Buffer() + sizeof(Gleam::Reflection::DatabaseHeader)"/>
+    <DisplayString Condition="Gleam::Reflection::IDatabase::sInstance == 0">{{ typeHash={mTypeHash} }}</DisplayString>
+    <DisplayString>{Strings() + mName.offset,[mName.size]s8}</DisplayString>
+    <Expand>
+      <Item Name="[Name]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">Strings() + mName.offset,[mName.size]s8</Item>
+      <Item Name="[QualifiedName]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">Strings() + mQualifiedName.offset,[mQualifiedName.size]s8</Item>
+      <Item Name="[Guid]">mGuid</Item>
+      <Item Name="[TypeHash]">mTypeHash</Item>
+      <Synthetic Name="[Attributes]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">
+        <DisplayString>{{ count={mAttributes.size / sizeof(unsigned int)} }}</DisplayString>
+        <Expand>
+          <CustomListItems>
+            <Variable Name="index" InitialValue="0"/>
+            <Variable Name="count" InitialValue="mAttributes.size / sizeof(unsigned int)"/>
+            <Variable Name="hashes" InitialValue="(unsigned int*)(Objects() + mAttributes.offset)"/>
+            <Variable Name="views" InitialValue="(Gleam::Reflection::BufferView*)(Objects() + mAttributes.offset + mAttributes.size)"/>
+            <Loop>
+              <Break Condition="index == count"/>
+)natvis";
+
+	for (const auto& [hash, attributeType] : attributeTypes)
+	{
+		const auto& qualifiedName = attributeType.second;
+		const auto separator = qualifiedName.rfind("::");
+		const auto name = separator == std::string_view::npos ? qualifiedName : qualifiedName.substr(separator + 2);
+		file << "              <Item Name=\"[" << name << "]\" Condition=\"hashes[index] == " << hash << "u\">*("
+			 << qualifiedName << "*)(Objects() + views[index].offset)</Item>\n";
+	}
+
+	file << R"natvis(              <Exec>++index</Exec>
+            </Loop>
+          </CustomListItems>
+        </Expand>
+      </Synthetic>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>
+)natvis";
 	return true;
 }

@@ -185,51 +185,6 @@ GLEAM_ATTRIBUTE(Guid)
     }
 };
 
-GLEAM_ATTRIBUTE(Version)
-{
-    uint32_t version;
-    
-    explicit constexpr Version(uint32_t version)
-        : version(version)
-    {
-        
-    }
-
-	explicit Version(const std::string& args)
-	{
-		version = std::stoi(args);
-	}
-};
-
-GLEAM_ATTRIBUTE(EntityComponent)
-{
-};
-
-GLEAM_ATTRIBUTE(Serializable)
-{
-};
-
-GLEAM_ATTRIBUTE(PrettyName)
-{
-    char name[64];
-    
-	template<size_t N>
-	explicit constexpr PrettyName(const char(&str)[N])
-    {
-		std::memcpy(name, str, N);
-		name[N] = '\0';
-    }
-
-	explicit PrettyName(const std::string& args)
-	{
-		if (args.size() > 2) // empty name check
-		{
-			std::memcpy(name, &args[1], args.size() - 2); // skip quotes
-			name[args.size() - 2] = '\0';
-		}
-	}
-};
-
 } // namespace Attribute
 
 template<typename T>

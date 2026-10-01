@@ -208,6 +208,12 @@ public:
         return false;
 	}
 
+	template<const auto& Tag>
+	bool HasAttribute() const
+	{
+		return HasAttribute<std::remove_cvref_t<decltype(Tag)>>();
+	}
+
 	template<AttributeType Attrib>
 	const Attrib* GetAttribute() const
 	{

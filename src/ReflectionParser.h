@@ -5,10 +5,14 @@
 #include <clang/AST/DeclBase.h>
 
 #include <set>
+#include <map>
 #include <filesystem>
 
 namespace clang {
 class ASTContext;
+class AnnotateAttr;
+class APValue;
+class QualType;
 class CXXRecordDecl;
 class ClassTemplateDecl;
 class EnumDecl;
@@ -70,7 +74,8 @@ private:
     size_t BuiltinTypeSize(const clang::BuiltinType* type) const;
     uint32_t BuiltinTypeHash(const clang::BuiltinType* type) const;
 
-    Reflection::BufferView ParseAttributes(const std::string& annotation);
+    Reflection::BufferView ParseAttributes(const clang::AnnotateAttr* annotateAttr, clang::ASTContext& context);
+    bool SerializeConstant(const clang::APValue& value, const clang::QualType& type, clang::ASTContext& context, uint8_t* dst) const;
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
 	std::string ExtractHeaderPath(const clang::SourceLocation& loc, clang::ASTContext& context) const;
 	std::string ExtractTemplateDeclaration(const clang::CXXRecordDecl* recordDecl) const;
@@ -83,6 +88,7 @@ private:
     ReflectionContext mContext;
 	std::set<std::string> mHeaders;
 	std::set<std::string> mTemplateHeaders;
+	std::map<uint32_t, std::string> mAttributeTypes;
 
 	mutable std::recursive_mutex mWriterMutex;
 	Reflection::BinaryWriter mStringWriter;

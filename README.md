@@ -1,5 +1,5 @@
 # GleamReflect
-Gleam Reflect is a Clang/LLVM-based reflection system for C++. Designed mainly to provide backward compatible serialization and aid UI development for [Gleam Engine](https://github.com/batuhanbozyel/GleamEngine). It supports C#-like attribute system although currently all attributes are part of reflection tool, not supporting custom attributes.
+Gleam Reflect is a Clang/LLVM-based reflection system for C++. Designed mainly to provide backward compatible serialization and aid UI development for [Gleam Engine](https://github.com/batuhanbozyel/GleamEngine). It supports a C#-like attribute system with user-defined attributes.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -7,7 +7,7 @@ Gleam Reflect is a Clang/LLVM-based reflection system for C++. Designed mainly t
 
 ### 1. Annotate Your C++ Types
 
-GleamReflect relies on a macro-based annotation system to mark types, fields, and enums for reflection. Each reflected type and fields are associated with a stable GUID and optional attributes (e.g. Serializable).
+GleamReflect relies on a macro-based annotation system to mark types, fields, and enums for reflection. Each reflected type and fields are associated with a stable GUID and optional attributes. `Guid` is the only built-in attribute; everything else (e.g. `Serializable` below) is user-defined, see [Custom Attributes](#custom-attributes).
 Include the reflection macros header in files you want to reflect:
 ```cpp
 #include <Reflection/Macro.h>
@@ -29,6 +29,42 @@ GENUM(WindowFlag, "193C9225-5267-46DD-BAED-9CBE464BB5CE", Serializable)
     GITEM(CustomWindow, "AF98F11E-512E-4ECA-8BEE-FA152AF2B210") = 3
 };
 ```
+
+#### Custom Attributes
+
+Attributes are plain C++ types declared inside `namespace Gleam::Reflection::Attribute`. The reflection tool evaluates them as constant expressions with Clang and stores their bytes in the database, so no registration is needed.
+
+```cpp
+#include <Reflection/Attribute.h>
+
+namespace Gleam::Reflection::Attribute {
+
+// Flag attribute, used without parentheses: GFIELD("...", Serializable)
+GLEAM_TAG_ATTRIBUTE(Serializable);
+
+// Data attribute, used as a constructor call: GFIELD("...", Range(0.0f, 1.0f))
+GLEAM_ATTRIBUTE(Range)
+{
+    float min;
+    float max;
+
+    constexpr Range(float min, float max)
+        : min(min), max(max)
+    {
+    }
+};
+
+} // namespace Gleam::Reflection::Attribute
+```
+
+Requirements:
+* Attributes must be constructible in a constant expression (`constexpr` constructors, every member initialized).
+* Members may be arithmetic types, enums, fixed-size arrays and nested structs/unions. Pointers, references and bit-fields are rejected.
+* Annotation arguments are split by the preprocessor, so use `Range(0.0f, 1.0f)` instead of `Range{0.0f, 1.0f}`.
+
+Query attributes at runtime with `HasAttribute<Attribute::Range>()` / `GetAttribute<Attribute::Range>()`.
+
+The tool parses every header as its own translation unit, so each annotated header must include the definitions of the attributes it uses (e.g. through a header that defines them and includes `<Reflection/Attribute.h>`).
 
 ### 2. Run the Reflection Tool
 
@@ -61,6 +97,16 @@ Stores all reflection metadata in a compact binary format suitable for fast runt
 
 * **Generated Header File (.Reflection.generated.h)**
 Provides strongly-typed runtime helper functions for querying reflection data from the database.
+
+#### Linking Modules
+
+Databases of multiple modules can be merged into a single database loaded by the application:
+
+```
+CppReflection --link --output=<linked.db> [--natvis=<file.natvis>] <module.db>...
+```
+
+When `--natvis` is given, the linker also generates a natvis file that visualizes reflection descriptions together with their typed attribute values. Add it to the executable target alongside `GleamReflect.natvis`, which covers the remaining reflection types.
 
 ### 4. Initialize Reflection at Runtime
 

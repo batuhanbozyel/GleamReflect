@@ -143,6 +143,7 @@ static bool RunLinkMode(int argc, const char** argv, int& outResult)
 {
 	std::vector<std::filesystem::path> inputs;
 	std::filesystem::path output;
+	std::filesystem::path natvis;
 	bool linkMode = false;
 
 	for (int i = 1; i < argc; ++i)
@@ -155,6 +156,10 @@ static bool RunLinkMode(int argc, const char** argv, int& outResult)
 		else if (arg.starts_with("--output="))
 		{
 			output = arg.substr(std::strlen("--output="));
+		}
+		else if (arg.starts_with("--natvis="))
+		{
+			natvis = arg.substr(std::strlen("--natvis="));
 		}
 		else if (arg.starts_with("--") == false)
 		{
@@ -175,7 +180,7 @@ static bool RunLinkMode(int argc, const char** argv, int& outResult)
 	}
 
 	Gleam::ReflectionLinker linker;
-	outResult = linker.Link(inputs, output) ? 0 : 1;
+	outResult = linker.Link(inputs, output, natvis) ? 0 : 1;
 	return true;
 }
 

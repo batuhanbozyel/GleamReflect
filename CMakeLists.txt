@@ -40,6 +40,9 @@ project(GleamReflect)
     )
     add_library(GleamReflect INTERFACE ${INCLUDE_FILES})
     target_include_directories(GleamReflect INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    if (MSVC)
+        target_sources(GleamReflect INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/GleamReflect.natvis>)
+    endif()
 
     option(BUILD_CPP_REFLECTION "Build the CppReflection executable" OFF)
     if (BUILD_CPP_REFLECTION)
@@ -132,7 +135,7 @@ project(GleamReflect)
 
         add_executable(CppReflection ${SOURCE_FILES} ${INCLUDE_FILES})
         target_link_directories(CppReflection PRIVATE ${LLVM_LIBRARY_DIR})
-        target_link_libraries(CppReflection PRIVATE ${LLVM_LIBS} ${CLANG_LIBS})
+        target_link_libraries(CppReflection PRIVATE ${LLVM_LIBS} ${CLANG_LIBS} GleamReflect)
         target_include_directories(CppReflection PRIVATE ${LLVM_INCLUDE_DIRS}
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/src

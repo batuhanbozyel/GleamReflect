@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="Gleam::Reflection::Attribute::Guid">
+    <DisplayString>{mData1,Xb}-{mData2,Xb}-{mData3,Xb}-{(unsigned short)(mData4[0] * 256 + mData4[1]),Xb}-{(unsigned short)(mData4[2] * 256 + mData4[3]),Xb}{(unsigned int)(mData4[4] * 16777216u + mData4[5] * 65536u + mData4[6] * 256u + mData4[7]),Xb}</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::AttributeDescription">
+    <DisplayString>{tag,s8} ({hash})</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::BufferView">
+    <DisplayString>{{ offset={offset}, size={size} }}</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::BinaryBuffer">
+    <DisplayString>{{ size={size} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>size</Size>
+        <ValuePointer>(unsigned char*)data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::DenseArrayView&lt;*&gt;">
+    <DisplayString>{{ size={mSize} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>mSize</Size>
+        <ValuePointer>mData</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::SparseArrayView&lt;*&gt;">
+    <DisplayString>{{ size={mIndices.mSize} }}</DisplayString>
+    <Expand>
+      <IndexListItems>
+        <Size>mIndices.mSize</Size>
+        <ValueNode>mData[mIndices.mData[$i]]</ValueNode>
+      </IndexListItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::BaseClassView">
+    <DisplayString>{{ size={mSize} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>mSize</Size>
+        <ValuePointer>mHashes</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::DatabaseHeader">
+    <DisplayString>{{ version={version}, classes={classCount}, enums={enumCount}, arrays={arrayCount} }}</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::IDatabase">
+    <Intrinsic Name="Header" Expression="(Gleam::Reflection::DatabaseHeader*)mBuffer.data"/>
+    <DisplayString Condition="mBuffer.data == 0">{{ uninitialized }}</DisplayString>
+    <DisplayString>{{ classes={Header()-&gt;classCount}, enums={Header()-&gt;enumCount}, arrays={Header()-&gt;arrayCount} }}</DisplayString>
+    <Expand>
+      <Item Name="[Header]" Condition="mBuffer.data != 0">*Header()</Item>
+      <Synthetic Name="[Classes]" Condition="mBuffer.data != 0">
+        <DisplayString>{{ count={Header()-&gt;classCount} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>Header()-&gt;classCount</Size>
+            <ValuePointer>(Gleam::Reflection::ClassDescription*)((char*)mBuffer.data + Header()-&gt;classTableOffset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+      <Synthetic Name="[Enums]" Condition="mBuffer.data != 0">
+        <DisplayString>{{ count={Header()-&gt;enumCount} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>Header()-&gt;enumCount</Size>
+            <ValuePointer>(Gleam::Reflection::EnumDescription*)((char*)mBuffer.data + Header()-&gt;enumTableOffset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+      <Synthetic Name="[Arrays]" Condition="mBuffer.data != 0">
+        <DisplayString>{{ count={Header()-&gt;arrayCount} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>Header()-&gt;arrayCount</Size>
+            <ValuePointer>(Gleam::Reflection::ArrayDescription*)((char*)mBuffer.data + Header()-&gt;arrayTableOffset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::PrimitiveDescription">
+    <DisplayString>{mType}</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::TemplateParameterDescription">
+    <DisplayString>{{ type={mType}, hash={mHash} }}</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::ArrayDescription">
+    <DisplayString>{{ elementType={mElementType}, elementHash={mElementHash}, size={mSize} }}</DisplayString>
+  </Type>
+
+  <Type Name="Gleam::Reflection::FieldDescription">
+    <DisplayString>{*(Gleam::Reflection::MetaDescription*)this,nd} {{ offset={mOffset}, size={mSize}, type={mType} }}</DisplayString>
+    <Expand>
+      <ExpandedItem>*(Gleam::Reflection::MetaDescription*)this,nd</ExpandedItem>
+      <Item Name="[Offset]">mOffset</Item>
+      <Item Name="[Size]">mSize</Item>
+      <Item Name="[Type]">mType</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::EnumCaseDescription">
+    <DisplayString>{*(Gleam::Reflection::MetaDescription*)this,nd} = {mValue}</DisplayString>
+    <Expand>
+      <ExpandedItem>*(Gleam::Reflection::MetaDescription*)this,nd</ExpandedItem>
+      <Item Name="[Value]">mValue</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::EnumDescription">
+    <Intrinsic Name="Objects" Expression="(char*)Gleam::Reflection::IDatabase::sInstance-&gt;mBuffer.data + sizeof(Gleam::Reflection::DatabaseHeader)"/>
+    <DisplayString>{*(Gleam::Reflection::MetaDescription*)this,nd} {{ size={mSize}, underlyingType={mUnderlyingType} }}</DisplayString>
+    <Expand>
+      <ExpandedItem>*(Gleam::Reflection::MetaDescription*)this,nd</ExpandedItem>
+      <Item Name="[Size]">mSize</Item>
+      <Item Name="[UnderlyingType]">mUnderlyingType</Item>
+      <Synthetic Name="[Cases]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">
+        <DisplayString>{{ count={mCases.size / sizeof(Gleam::Reflection::EnumCaseDescription)} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>mCases.size / sizeof(Gleam::Reflection::EnumCaseDescription)</Size>
+            <ValuePointer>(Gleam::Reflection::EnumCaseDescription*)(Objects() + mCases.offset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+    </Expand>
+  </Type>
+
+  <Type Name="Gleam::Reflection::ClassDescription">
+    <Intrinsic Name="Objects" Expression="(char*)Gleam::Reflection::IDatabase::sInstance-&gt;mBuffer.data + sizeof(Gleam::Reflection::DatabaseHeader)"/>
+    <DisplayString>{*(Gleam::Reflection::MetaDescription*)this,nd} {{ size={mSize} }}</DisplayString>
+    <Expand>
+      <ExpandedItem>*(Gleam::Reflection::MetaDescription*)this,nd</ExpandedItem>
+      <Item Name="[Size]">mSize</Item>
+      <Synthetic Name="[Fields]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">
+        <DisplayString>{{ count={mFields.size / sizeof(Gleam::Reflection::FieldDescription)} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>mFields.size / sizeof(Gleam::Reflection::FieldDescription)</Size>
+            <ValuePointer>(Gleam::Reflection::FieldDescription*)(Objects() + mFields.offset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+      <Synthetic Name="[BaseClasses]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">
+        <DisplayString>{{ count={mBaseClasses.size / sizeof(unsigned int)} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>mBaseClasses.size / sizeof(unsigned int)</Size>
+            <ValuePointer>(unsigned int*)(Objects() + mBaseClasses.offset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+      <Synthetic Name="[TemplateParameters]" Condition="Gleam::Reflection::IDatabase::sInstance != 0">
+        <DisplayString>{{ count={mTemplateParams.size / sizeof(Gleam::Reflection::TemplateParameterDescription)} }}</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>mTemplateParams.size / sizeof(Gleam::Reflection::TemplateParameterDescription)</Size>
+            <ValuePointer>(Gleam::Reflection::TemplateParameterDescription*)(Objects() + mTemplateParams.offset)</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>

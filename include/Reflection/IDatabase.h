@@ -27,10 +27,18 @@ struct DatabaseHeader
     uint32_t classCount;
     uint32_t enumCount;
 	uint32_t arrayCount;
+	uint32_t attributeTypeCount;
     size_t classTableOffset;
     size_t enumTableOffset;
 	size_t arrayTableOffset;
+	size_t attributeTypeTableOffset;
 	size_t stringTableOffset;
+};
+
+struct AttributeTypeDescription
+{
+	uint32_t hash = 0;
+	BufferView qualifiedName = {};
 };
 
 class IDatabase

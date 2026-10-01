@@ -1,9 +1,9 @@
 #include "ReflectionParser.h"
-#include "AttributeFactory.h"
 #include "Reflection/Database.h"
 
 #include <clang/AST/AST.h>
 #include <clang/AST/Attr.h>
+#include <clang/AST/RecordLayout.h>
 #include <clang/Tooling/Tooling.h>
 
 #include <fstream>
@@ -81,10 +81,18 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 		const auto& classes = ReflectionContext::GetClasses();
 		const auto& arrays = ReflectionContext::GetArrays();
 
+		std::vector<Reflection::AttributeTypeDescription> attributeTypes;
+		for (const auto& [hash, qualifiedName] : mAttributeTypes)
+		{
+			attributeTypes.push_back({ hash, mStringWriter.Write(qualifiedName.data(), qualifiedName.size()) });
+		}
+
 		size_t bufferSize = sizeof(Reflection::DatabaseHeader)
 			+ mObjectWriter.GetBuffer().size
 			+ classes.size() * sizeof(Reflection::ClassDescription)
 			+ enums.size() * sizeof(Reflection::EnumDescription)
+			+ arrays.size() * sizeof(Reflection::ArrayDescription)
+			+ attributeTypes.size() * sizeof(Reflection::AttributeTypeDescription)
 			+ mStringWriter.GetBuffer().size;
 
         Reflection::BinaryWriter writer(bufferSize);
@@ -120,6 +128,10 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 		serializedHeader->arrayTableOffset = writer.GetCursor();
 		writer.Write(arrays.data(), arrays.size() * sizeof(Reflection::ArrayDescription));
 		serializedHeader->arrayCount = static_cast<uint32_t>(arrays.size());
+
+		serializedHeader->attributeTypeTableOffset = writer.GetCursor();
+		writer.Write(attributeTypes.data(), attributeTypes.size() * sizeof(Reflection::AttributeTypeDescription));
+		serializedHeader->attributeTypeCount = static_cast<uint32_t>(attributeTypes.size());
 
 		const auto& stringBuffer = mStringWriter.GetBuffer();
 		serializedHeader->stringTableOffset = writer.GetCursor();
@@ -205,7 +217,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
     auto enumAnnotation = enumAnnotateAttr->getAnnotation().str();
     if (enumAnnotation.find("GENUM") != std::string::npos)
     {
-        auto attributes = ParseAttributes(enumAnnotation);
+        auto attributes = ParseAttributes(enumAnnotateAttr, enumDecl->getASTContext());
 		auto guid = ExtractGuid(attributes);
 		if (guid == Reflection::Attribute::Guid::InvalidGuid())
 		{
@@ -248,7 +260,7 @@ EnumHandle ReflectionParser::HandleEnumDecl(const clang::EnumDecl* enumDecl)
             
             if (itemAnnotation.find("GITEM") != std::string::npos)
             {
-                auto itemAttributes = ParseAttributes(itemAnnotation);
+                auto itemAttributes = ParseAttributes(itemAnnotateAttr, enumDecl->getASTContext());
                 auto itemGuid = ExtractGuid(itemAttributes);
 				if (itemGuid == Reflection::Attribute::Guid::InvalidGuid())
 				{
@@ -375,7 +387,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
     auto recordAnnotation = recordAnnotateAttr->getAnnotation().str();
     if (recordAnnotation.find("GCLASS") != std::string::npos || recordAnnotation.find("GSTRUCT") != std::string::npos)
     {
-        auto recordAttribs = ParseAttributes(recordAnnotation);
+        auto recordAttribs = ParseAttributes(recordAnnotateAttr, recordDecl->getASTContext());
         auto recordGuid = ExtractGuid(recordAttribs);
 		if (recordGuid == Reflection::Attribute::Guid::InvalidGuid())
 		{
@@ -455,7 +467,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
             
             if (annotation.find("GFIELD") != std::string::npos)
             {
-                auto fieldAttribs = ParseAttributes(annotation);
+                auto fieldAttribs = ParseAttributes(annotateAttr, recordDecl->getASTContext());
                 auto fieldGuid = ExtractGuid(fieldAttribs);
 				if (fieldGuid == Reflection::Attribute::Guid::InvalidGuid())
 				{
@@ -569,7 +581,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
             
             if (annotation.find("GFUNCTION"))
             {
-                auto attribs = ParseAttributes(annotation);
+                auto attribs = ParseAttributes(annotateAttr, recordDecl->getASTContext());
                 auto guid = ExtractGuid(attribs);
 				if (guid == Reflection::Attribute::Guid::InvalidGuid())
 				{
@@ -704,42 +716,131 @@ ReflectionContext* ReflectionParser::GetDeclReflectionContext(const clang::DeclC
 	return &mContext;
 }
 
-Reflection::BufferView ReflectionParser::ParseAttributes(const std::string& annotation)
+Reflection::BufferView ReflectionParser::ParseAttributes(const clang::AnnotateAttr* annotateAttr, clang::ASTContext& context)
 {
-    std::regex attrRegex(R"(\b([A-Za-z0-9_]+)(?:\(([^)]*)\))?)");
-    std::sregex_iterator it(annotation.begin(), annotation.end(), attrRegex);
-    std::sregex_iterator end;
- 
     std::vector<uint32_t> attributeHashes;
 	std::vector<Reflection::BufferView> attributeViews;
 
 	std::lock_guard guard(mWriterMutex);
-    for (; it != end; ++it)
-    {
-        std::string attrName = (*it)[1].str();
-        std::string argsStr = (*it)[2].str();
-
-        if (attrName == "GCLASS" || 
-            attrName == "GSTRUCT" || 
-            attrName == "GENUM" || 
-            attrName == "GITEM" || 
-            attrName == "GFUNCTION" || 
-            attrName == "GFIELD")
-        {
-			continue; // skip macro attributes
-        }
-        
-        if (auto attr = Reflection::AttributeFactory::Instance().CreateAttribute(attrName, argsStr); attr.ptr != nullptr)
+	for (const auto arg : annotateAttr->args())
+	{
+		const auto constant = llvm::dyn_cast<clang::ConstantExpr>(arg);
+		const auto record = arg->getType()->getAsCXXRecordDecl();
+		const auto recordAnnotateAttr = record ? record->getAttr<clang::AnnotateAttr>() : nullptr;
+		if (constant == nullptr or recordAnnotateAttr == nullptr or recordAnnotateAttr->getAnnotation() != "GATTRIBUTE")
 		{
-			auto attrView = mObjectWriter.Write(attr.ptr, attr.size);
-			attributeHashes.emplace_back(attr.hash);
-			attributeViews.emplace_back(attrView);
-			delete attr.ptr;
-        }
-    }
+			std::cerr << annotateAttr->getAnnotation().str() << " argument is not a reflection attribute" << std::endl;
+			continue;
+		}
+
+		std::vector<uint8_t> bytes(context.getTypeSizeInChars(arg->getType()).getQuantity(), 0);
+		if (SerializeConstant(constant->getAPValueResult(), arg->getType(), context, bytes.data()) == false)
+		{
+			std::cerr << record->getName().str() << " attribute contains a value that cannot be serialized" << std::endl;
+			continue;
+		}
+
+		auto nameStr = record->getName().str();
+		auto hash = Reflection::Utils::HashString(nameStr.c_str());
+		auto qualifiedNameStr = record->getQualifiedNameAsString();
+		if (auto [it, inserted] = mAttributeTypes.emplace(hash, qualifiedNameStr); inserted == false and it->second != qualifiedNameStr)
+		{
+			std::cerr << it->second << " and " << qualifiedNameStr << " attributes have the same hash" << std::endl;
+		}
+		attributeHashes.emplace_back(hash);
+		attributeViews.emplace_back(mObjectWriter.Write(bytes.data(), bytes.size()));
+	}
 	auto attributes = mObjectWriter.Write(attributeHashes.data(), attributeHashes.size() * sizeof(uint32_t));
 	mObjectWriter.Write(attributeViews.data(), attributeViews.size() * sizeof(Reflection::BufferView));
     return attributes;
+}
+
+bool ReflectionParser::SerializeConstant(const clang::APValue& value, const clang::QualType& type, clang::ASTContext& context, uint8_t* dst) const
+{
+	const auto canonicalType = type.getCanonicalType();
+	switch (value.getKind())
+	{
+		case clang::APValue::None:
+		case clang::APValue::Indeterminate:
+		{
+			return true;
+		}
+		case clang::APValue::Int:
+		{
+			const auto size = context.getTypeSizeInChars(canonicalType).getQuantity();
+			const auto intValue = value.getInt().extOrTrunc(static_cast<uint32_t>(size * 8));
+			std::memcpy(dst, intValue.getRawData(), size);
+			return true;
+		}
+		case clang::APValue::Float:
+		{
+			const auto size = context.getTypeSizeInChars(canonicalType).getQuantity();
+			const auto bits = value.getFloat().bitcastToAPInt();
+			std::memcpy(dst, bits.getRawData(), size);
+			return true;
+		}
+		case clang::APValue::Array:
+		{
+			const auto arrayType = context.getAsConstantArrayType(canonicalType);
+			const auto elementType = arrayType->getElementType();
+			const auto elementSize = context.getTypeSizeInChars(elementType).getQuantity();
+			for (uint32_t i = 0; i < value.getArraySize(); ++i)
+			{
+				const auto& element = i < value.getArrayInitializedElts() ? value.getArrayInitializedElt(i) : value.getArrayFiller();
+				if (SerializeConstant(element, elementType, context, dst + i * elementSize) == false)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		case clang::APValue::Struct:
+		{
+			const auto record = canonicalType->getAsCXXRecordDecl();
+			if (record->getNumVBases() > 0)
+			{
+				return false;
+			}
+
+			const auto& layout = context.getASTRecordLayout(record);
+			uint32_t baseIndex = 0;
+			for (const auto& base : record->bases())
+			{
+				const auto offset = layout.getBaseClassOffset(base.getType()->getAsCXXRecordDecl()).getQuantity();
+				if (SerializeConstant(value.getStructBase(baseIndex++), base.getType(), context, dst + offset) == false)
+				{
+					return false;
+				}
+			}
+
+			for (const auto field : record->fields())
+			{
+				if (field->isBitField())
+				{
+					return false;
+				}
+
+				const auto offset = context.toCharUnitsFromBits(layout.getFieldOffset(field->getFieldIndex())).getQuantity();
+				if (SerializeConstant(value.getStructField(field->getFieldIndex()), field->getType(), context, dst + offset) == false)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		case clang::APValue::Union:
+		{
+			if (const auto field = value.getUnionField())
+			{
+				return SerializeConstant(value.getUnionValue(), field->getType(), context, dst);
+			}
+			return true;
+		}
+		default:
+		{
+			return false;
+		}
+	}
 }
 
 Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const Reflection::BufferView& attributes) const
@@ -1014,9 +1115,3 @@ std::string_view ReflectionParser::NameWithoutTemplateDeclaration(const std::str
 	}
 	return name.substr(0, template_start);
 }
-
-REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Guid);
-REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Version);
-REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, EntityComponent);
-REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, Serializable);
-REGISTER_ATTRIBUTE(Gleam::Reflection::Attribute, PrettyName);
