@@ -42,14 +42,13 @@ constexpr void HashCombine(size_t& seed, const T& value)
 }
 
 // Fowler–Noll–Vo hash
-template<size_t N>
-static constexpr uint32_t HashString(const char (&str)[N])
+static constexpr uint32_t HashString(const char* str, size_t length)
 {
     constexpr uint32_t FNV_PRIME = 16777619u;
     constexpr uint32_t OFFSET_BASIS = 2166136261u;
     
     uint32_t hash = OFFSET_BASIS;
-    for (uint32_t i = 0; i < N; ++i)
+    for (size_t i = 0; i < length; ++i)
     {
         hash ^= static_cast<uint32_t>(str[i]);
         hash *= FNV_PRIME;
@@ -57,19 +56,20 @@ static constexpr uint32_t HashString(const char (&str)[N])
     return hash;
 }
 
+template<size_t N>
+static constexpr uint32_t HashString(const char (&str)[N])
+{
+    return HashString(str, N);
+}
+
 static constexpr uint32_t HashString(const char* str)
 {
-    constexpr uint32_t FNV_PRIME = 16777619u;
-    constexpr uint32_t OFFSET_BASIS = 2166136261u;
-    
-    uint32_t hash = OFFSET_BASIS;
-    while (*str)
+    size_t length = 0;
+    while (str[length])
     {
-        hash ^= static_cast<uint32_t>(*str);
-        hash *= FNV_PRIME;
-        ++str;
+        ++length;
     }
-    return hash;
+    return HashString(str, length);
 }
     
 } // namespace Gleam
