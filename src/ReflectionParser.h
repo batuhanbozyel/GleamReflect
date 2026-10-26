@@ -14,6 +14,7 @@ class AnnotateAttr;
 class APValue;
 class QualType;
 class CXXRecordDecl;
+class FieldDecl;
 class ClassTemplateDecl;
 class EnumDecl;
 class ConstantArrayType;
@@ -77,6 +78,7 @@ private:
     Reflection::BufferView ParseAttributes(const clang::AnnotateAttr* annotateAttr, clang::ASTContext& context);
     bool SerializeConstant(const clang::APValue& value, const clang::QualType& type, clang::ASTContext& context, uint8_t* dst) const;
     Reflection::Attribute::Guid ExtractGuid(const Reflection::BufferView& attributes) const;
+    Reflection::BufferView WriteFieldDefault(const clang::FieldDecl* field, clang::ASTContext& context);
 	std::string ExtractHeaderPath(const clang::SourceLocation& loc, clang::ASTContext& context) const;
 	std::string ExtractTemplateDeclaration(const clang::CXXRecordDecl* recordDecl) const;
 	std::string ExtractTemplateParameter(const clang::NamedDecl* param, const clang::PrintingPolicy& policy) const;

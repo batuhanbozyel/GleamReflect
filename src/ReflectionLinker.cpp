@@ -69,6 +69,7 @@ void ReflectionLinker::PatchClass(Reflection::ClassDescription& classDesc, char*
 	for (size_t i = 0; i < fieldCount; ++i)
 	{
 		PatchMeta(fields[i], objects, objectBase, stringBase);
+		fields[i].mDefaultValue.offset += objectBase;
 	}
 }
 

@@ -600,6 +600,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 
 				size_t fieldOffset = field->getASTContext().getFieldOffset(field) / 8ul; // Convert bits to bytes
 				size_t fieldSize = field->getASTContext().getTypeSize(fieldType) / 8ul; // Convert bits to bytes
+				auto fieldDefault = WriteFieldDefault(field, field->getASTContext());
 
 				auto fieldNameStr = field->getName();
 
@@ -610,7 +611,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 				std::lock_guard guard(mWriterMutex);
 				auto fieldName = mStringWriter.Write(fieldNameStr.data(), fieldNameStr.size());
 				auto fieldQualifiedName = mStringWriter.Write(fieldQualifiedNameStr.data(), fieldQualifiedNameStr.size());
-                fieldDescs.emplace_back(Reflection::FieldDescription({ fieldName, fieldQualifiedName, fieldAttribs, fieldGuid, fieldHash }, fieldOffset, fieldSize, fieldMetaType));
+                fieldDescs.emplace_back(Reflection::FieldDescription({ fieldName, fieldQualifiedName, fieldAttribs, fieldGuid, fieldHash }, fieldOffset, fieldSize, fieldMetaType, fieldDefault));
             }
         }
         
@@ -888,6 +889,54 @@ bool ReflectionParser::SerializeConstant(const clang::APValue& value, const clan
 			return false;
 		}
 	}
+}
+
+Reflection::BufferView ReflectionParser::WriteFieldDefault(const clang::FieldDecl* field, clang::ASTContext& context)
+{
+	const auto initializer = field->getInClassInitializer();
+	if (initializer == nullptr)
+	{
+		return {};
+	}
+
+	const auto fieldType = field->getType();
+	if (fieldType.isTriviallyCopyableType(context))
+	{
+		clang::Expr::EvalResult result;
+		std::vector<uint8_t> bytes(context.getTypeSizeInChars(fieldType).getQuantity(), 0);
+		if (initializer->EvaluateAsConstantExpr(result, context) and SerializeConstant(result.Val, fieldType, context, bytes.data()))
+		{
+			std::lock_guard guard(mWriterMutex);
+			return mObjectWriter.Write(bytes.data(), bytes.size());
+		}
+		return {};
+	}
+
+	// Non-trivial classes such as TString keep only a string literal initializer, possibly wrapped in converting constructors
+	auto expr = initializer->IgnoreImplicit();
+	while (true)
+	{
+		if (const auto construct = llvm::dyn_cast<clang::CXXConstructExpr>(expr); construct and construct->getNumArgs() == 1)
+		{
+			expr = construct->getArg(0)->IgnoreImplicit();
+		}
+		else if (const auto cast = llvm::dyn_cast<clang::CXXFunctionalCastExpr>(expr))
+		{
+			expr = cast->getSubExpr()->IgnoreImplicit();
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (const auto literal = llvm::dyn_cast<clang::StringLiteral>(expr); literal and literal->isOrdinary())
+	{
+		const auto text = literal->getString();
+		std::lock_guard guard(mWriterMutex);
+		return mObjectWriter.Write(text.data(), text.size());
+	}
+	return {};
 }
 
 Reflection::Attribute::Guid ReflectionParser::ExtractGuid(const Reflection::BufferView& attributes) const

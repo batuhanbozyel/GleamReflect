@@ -250,15 +250,18 @@ private:
 
 class FieldDescription : public MetaDescription
 {
+	friend class Gleam::ReflectionLinker;
+
 public:
 
 	FieldDescription() = default;
     
-	FieldDescription(const MetaDescription& meta, size_t offset, size_t size, MetaType type)
+	FieldDescription(const MetaDescription& meta, size_t offset, size_t size, MetaType type, const BufferView& defaultValue)
         : MetaDescription(meta)
 		, mOffset(offset)
 		, mSize(size)
 		, mType(type)
+		, mDefaultValue(defaultValue)
     {
         
     }
@@ -277,12 +280,23 @@ public:
     {
         return mType;
     }
+
+	auto DefaultValue() const
+	{
+		if (mDefaultValue.size == 0)
+		{
+			return DenseArrayView<uint8_t>{ nullptr, 0 };
+		}
+		const auto ptr = IDatabase::GetInstance()->GetObject<uint8_t>(mDefaultValue);
+		return DenseArrayView{ ptr, mDefaultValue.size };
+	}
     
 private:
     
     size_t mSize = 0;
     size_t mOffset = 0;
     MetaType mType = MetaType::Invalid;
+	BufferView mDefaultValue = {};
 };
 
 class EnumCaseDescription : public MetaDescription
