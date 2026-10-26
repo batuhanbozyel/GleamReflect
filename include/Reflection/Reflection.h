@@ -51,6 +51,12 @@ inline constexpr PrimitiveDescription GetPrimitive(uint32_t hash)
 }
 
 template<typename T>
+inline constexpr uint32_t TypeHash()
+{
+	return 0;
+}
+
+template<typename T>
 inline const ClassDescription& GetClass()
 {
 	static ClassDescription invalidDesc;

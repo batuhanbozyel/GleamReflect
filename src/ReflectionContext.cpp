@@ -135,10 +135,15 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 			continue;
 		}
 		ss << "template<>\n";
+		ss << "inline constexpr uint32_t TypeHash<" << mQualifiedName << "::" << enumDesc.ResolveName() << ">()\n";
+		ss << "{\n";
+		ss << "\treturn " << enumDesc.TypeHash() << "u;\n";
+		ss << "}\n\n";
+
+		ss << "template<>\n";
 		ss << "inline const EnumDescription& GetEnum<" << mQualifiedName << "::" << enumDesc.ResolveName() << ">()\n";
 		ss << "{\n";
-		ss << "\tstatic const auto& enumDesc = *IDatabase::GetInstance()->GetEnum(" << enumDesc.TypeHash() << "u);\n";
-		ss << "\treturn enumDesc;\n";
+		ss << "\treturn *IDatabase::GetInstance()->GetEnum(" << enumDesc.TypeHash() << "u);\n";
 		ss << "}\n\n";
 	}
 
@@ -161,10 +166,15 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 			}
 
 			ss << "template<>\n";
+			ss << "inline constexpr uint32_t TypeHash<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
+			ss << "{\n";
+			ss << "\treturn " << classDesc.TypeHash() << "u;\n";
+			ss << "}\n\n";
+
+			ss << "template<>\n";
 			ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
 			ss << "{\n";
-			ss << "\tstatic const auto& classDesc = *IDatabase::GetInstance()->GetClass(" << classDesc.TypeHash() << "u);\n";
-			ss << "\treturn classDesc;\n";
+			ss << "\treturn *IDatabase::GetInstance()->GetClass(" << classDesc.TypeHash() << "u);\n";
 			ss << "}\n\n";
 		}
 	}
@@ -188,10 +198,15 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
 			}
 
 			ss << "template<>\n";
+			ss << "inline constexpr uint32_t TypeHash<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
+			ss << "{\n";
+			ss << "\treturn " << classDesc.TypeHash() << "u;\n";
+			ss << "}\n\n";
+
+			ss << "template<>\n";
 			ss << "inline const ClassDescription& GetClass<" << mQualifiedName << "::" << classNameSS.str() << ">()\n";
 			ss << "{\n";
-			ss << "\tstatic const auto& classDesc = *IDatabase::GetInstance()->GetClass(" << classDesc.TypeHash() << "u);\n";
-			ss << "\treturn classDesc;\n";
+			ss << "\treturn *IDatabase::GetInstance()->GetClass(" << classDesc.TypeHash() << "u);\n";
 			ss << "}\n\n";
 		}
 	}
