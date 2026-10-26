@@ -221,6 +221,54 @@ void ReflectionContext::GenerateMetaDescs(std::stringstream& ss) const
     }
 }
 
+void ReflectionContext::GenerateTypeList(std::stringstream& aliases, std::stringstream& list) const
+{
+	const auto appendClass = [&](ClassHandle handle)
+	{
+		const auto& classDesc = mClasses[handle];
+		if (IsExternal(classDesc.TypeHash()))
+		{
+			return;
+		}
+
+		std::stringstream typeName;
+		typeName << mQualifiedName << "::" << classDesc.ResolveName();
+
+		// Template arguments may contain commas, aliasing keeps each entry a single macro argument
+		if (classDesc.IsTemplate())
+		{
+			typeName << "<" << mClassTemplateDecls[handle] << ">";
+			aliases << "using Type_" << classDesc.TypeHash() << " = " << typeName.str() << ";\n";
+			list << "\tX(Gleam::Reflection::Generated::Type_" << classDesc.TypeHash() << ") \\\n";
+		}
+		else
+		{
+			list << "\tX(" << typeName.str() << ") \\\n";
+		}
+	};
+
+	for (const auto& [guid, classes] : mGuidToClass)
+	{
+		for (const auto handle : classes)
+		{
+			appendClass(handle);
+		}
+	}
+
+	for (const auto& [guid, classes] : mGuidToStruct)
+	{
+		for (const auto handle : classes)
+		{
+			appendClass(handle);
+		}
+	}
+
+	for (const auto context : mContexts)
+	{
+		context->GenerateTypeList(aliases, list);
+	}
+}
+
 ReflectionContext* ReflectionContext::EmplaceContext(const std::string& qualifiedName)
 {
 	if (QualifiedName() == qualifiedName)

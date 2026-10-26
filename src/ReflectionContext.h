@@ -73,6 +73,7 @@ public:
     
 	void GenerateForwardDecls(std::stringstream& ss) const;
     void GenerateMetaDescs(std::stringstream& ss) const;
+	void GenerateTypeList(std::stringstream& aliases, std::stringstream& list) const;
 
 	static void SetExternalTypes(std::unordered_set<uint32_t>&& types)
 	{

@@ -88,6 +88,7 @@ private:
     ReflectionContext mContext;
 	std::set<std::string> mHeaders;
 	std::set<std::string> mTemplateHeaders;
+	std::map<uint32_t, std::string> mClassHeaders;
 	std::map<uint32_t, std::string> mAttributeTypes;
 
 	mutable std::recursive_mutex mWriterMutex;

@@ -68,6 +68,13 @@ void ReflectionParser::ParseDecls(const clang::DeclContext::decl_range& decls)
     }
 }
 
+static std::string RelativeIncludePath(const std::string& header, const std::filesystem::path& headerDir)
+{
+	auto relativePath = std::filesystem::relative(std::filesystem::path(header), headerDir).string();
+	std::replace(relativePath.begin(), relativePath.end(), '\\', '/');
+	return relativePath;
+}
+
 void ReflectionParser::GenerateOutput(const std::string& moduleName,
 									  const std::filesystem::path& headerDir, 
 									  const std::filesystem::path& binaryDir)
@@ -157,11 +164,7 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 
 	for (const auto& header : mTemplateHeaders)
 	{
-		std::filesystem::path headerPath(header);
-		std::filesystem::path relativePath = std::filesystem::relative(headerPath, headerDir);
-		std::string relativePathStr = relativePath.string();
-		std::replace(relativePathStr.begin(), relativePathStr.end(), '\\', '/');
-		generatedCode << "#include \"" << relativePathStr << "\"\n";
+		generatedCode << "#include \"" << RelativeIncludePath(header, headerDir) << "\"\n";
 	}
 	generatedCode << "\n";
 	mContext.GenerateForwardDecls(generatedCode);
@@ -179,6 +182,49 @@ void ReflectionParser::GenerateOutput(const std::string& moduleName,
 
 		auto generatedCodeStr = generatedCode.str();
 		file.write(generatedCodeStr.c_str(), generatedCodeStr.length());
+		file.close();
+	}
+
+	// Generated type list
+	{
+		std::set<std::string> typeHeaders;
+		for (const auto& classDesc : ReflectionContext::GetClasses())
+		{
+			if (classDesc.IsTemplate() or ReflectionContext::IsExternal(classDesc.TypeHash()))
+			{
+				continue;
+			}
+
+			if (auto it = mClassHeaders.find(classDesc.TypeHash()); it != mClassHeaders.end())
+			{
+				typeHeaders.insert(it->second);
+			}
+		}
+
+		std::stringstream typeAliases;
+		std::stringstream typeList;
+		mContext.GenerateTypeList(typeAliases, typeList);
+
+		std::string moduleMacroName = moduleName;
+		std::transform(moduleMacroName.begin(), moduleMacroName.end(), moduleMacroName.begin(), ::toupper);
+
+		std::stringstream typesCode;
+		typesCode << "#pragma once\n";
+		for (const auto& header : typeHeaders)
+		{
+			typesCode << "#include \"" << RelativeIncludePath(header, headerDir) << "\"\n";
+		}
+		typesCode << "\nnamespace Gleam::Reflection::Generated {\n";
+		typesCode << typeAliases.str();
+		typesCode << "} // namespace Gleam::Reflection::Generated\n\n";
+		typesCode << "#define GLEAM_FOR_EACH_" << moduleMacroName << "_REFLECTED_CLASS(X) \\\n";
+		typesCode << typeList.str() << "\n";
+
+		auto filename = headerDir / (moduleName + ".Reflection.types.inl");
+		std::ofstream file(filename, std::ios::out | std::ios::trunc);
+
+		auto typesCodeStr = typesCode.str();
+		file.write(typesCodeStr.c_str(), typesCodeStr.length());
 		file.close();
 	}
 	database.Shutdown();
@@ -619,6 +665,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		if (headerPath.empty() == false)
 		{
 			mHeaders.insert(headerPath);
+			mClassHeaders[typeHash] = headerPath;
 			if (templateParamDescs.empty() == false)
 			{
 				mTemplateHeaders.insert(headerPath);
