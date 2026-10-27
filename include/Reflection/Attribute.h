@@ -143,7 +143,7 @@ GLEAM_ATTRIBUTE(Guid)
     constexpr Guid(Guid&&) = default;
     constexpr Guid& operator=(Guid&&) noexcept = default;
     
-    static Guid InvalidGuid()
+    static constexpr Guid InvalidGuid()
     {
         return Guid();
     }
