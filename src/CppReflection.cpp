@@ -216,7 +216,7 @@ int main(int argc, const char **argv)
 		return result;
 	}
 
-    auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, ReflectionToolCategory);
+    auto optionsParser = clang::tooling::CommonOptionsParser::create(argc, argv, ReflectionToolCategory, llvm::cl::ZeroOrMore);
     if (!optionsParser)
     {
         llvm::errs() << optionsParser.takeError();
@@ -225,35 +225,7 @@ int main(int argc, const char **argv)
 
     clang::tooling::CommonOptionsParser& parser = optionsParser.get();
 	const auto& sourceFiles = parser.getSourcePathList();
-	if (sourceFiles.empty())
-	{
-		llvm::errs() << "No source files provided\n";
-		return 1;
-	}
-	
-	if (LogTrace)
-	{
-		llvm::outs() << "Processing " << sourceFiles.size() << " header files:\n";
-		for (const auto& file : sourceFiles)
-		{
-			llvm::outs() << "  " << file << "\n";
-		}
-		llvm::outs() << "\n";
-		llvm::outs().flush();
-	}
-	
-	auto reflectionCompilationDB = ReflectionCompilationDatabase(parser.getCompilations(), sourceFiles);
-	auto executor = clang::tooling::AllTUsToolExecutor(reflectionCompilationDB, 0);
-	auto adjuster = clang::tooling::getInsertArgumentAdjuster(
-			{"-D__GLEAM_REFLECTION__", "--no-warnings"},
-			clang::tooling::ArgumentInsertPosition::END);
-	
-	if (LogTrace)
-	{
-		llvm::outs() << "Starting reflection generation...\n";
-		llvm::outs().flush();
-	}
-	
+
 	std::unordered_set<uint32_t> externalTypes;
 	if (CollectExternalTypes(externalTypes) == false)
 	{
@@ -262,12 +234,40 @@ int main(int argc, const char **argv)
 
 	ReflectionParser reflectionParser;
 	reflectionParser.SetExternalTypes(std::move(externalTypes));
-	std::pair<std::unique_ptr<clang::tooling::FrontendActionFactory>, clang::tooling::ArgumentsAdjuster> frontend = std::pair{std::make_unique<ReflectionFrontendActionFactory>(reflectionParser), adjuster};
-	llvm::Error err = executor.execute(llvm::ArrayRef<decltype(frontend)>(frontend));
-	if (err)
+
+	// A module without reflected headers still writes empty outputs, a new project has no script headers yet
+	if (sourceFiles.empty() == false)
 	{
-		llvm::errs() << "Execution failed: " << llvm::toString(std::move(err)) << "\n";
-		return 1;
+		if (LogTrace)
+		{
+			llvm::outs() << "Processing " << sourceFiles.size() << " header files:\n";
+			for (const auto& file : sourceFiles)
+			{
+				llvm::outs() << "  " << file << "\n";
+			}
+			llvm::outs() << "\n";
+			llvm::outs().flush();
+		}
+
+		auto reflectionCompilationDB = ReflectionCompilationDatabase(parser.getCompilations(), sourceFiles);
+		auto executor = clang::tooling::AllTUsToolExecutor(reflectionCompilationDB, 0);
+		auto adjuster = clang::tooling::getInsertArgumentAdjuster(
+				{"-D__GLEAM_REFLECTION__", "--no-warnings"},
+				clang::tooling::ArgumentInsertPosition::END);
+
+		if (LogTrace)
+		{
+			llvm::outs() << "Starting reflection generation...\n";
+			llvm::outs().flush();
+		}
+
+		std::pair<std::unique_ptr<clang::tooling::FrontendActionFactory>, clang::tooling::ArgumentsAdjuster> frontend = std::pair{std::make_unique<ReflectionFrontendActionFactory>(reflectionParser), adjuster};
+		llvm::Error err = executor.execute(llvm::ArrayRef<decltype(frontend)>(frontend));
+		if (err)
+		{
+			llvm::errs() << "Execution failed: " << llvm::toString(std::move(err)) << "\n";
+			return 1;
+		}
 	}
 	
 	std::string moduleName = Module;

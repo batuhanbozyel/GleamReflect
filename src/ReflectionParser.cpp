@@ -70,9 +70,13 @@ void ReflectionParser::ParseDecls(const clang::DeclContext::decl_range& decls)
 
 static std::string RelativeIncludePath(const std::string& header, const std::filesystem::path& headerDir)
 {
-	auto relativePath = std::filesystem::relative(std::filesystem::path(header), headerDir).string();
-	std::replace(relativePath.begin(), relativePath.end(), '\\', '/');
-	return relativePath;
+	auto path = std::filesystem::relative(std::filesystem::path(header), headerDir);
+	// No relative path exists between different Windows drives
+	if (path.empty())
+	{
+		path = std::filesystem::path(header);
+	}
+	return path.generic_string();
 }
 
 void ReflectionParser::GenerateOutput(const std::string& moduleName,
@@ -899,6 +903,23 @@ bool ReflectionParser::SerializeConstant(const clang::APValue& value, const clan
 	}
 }
 
+static bool HasSingleExplicitArgument(const clang::CXXConstructExpr* construct)
+{
+	if (construct->getNumArgs() == 0)
+	{
+		return false;
+	}
+
+	for (unsigned i = 1; i < construct->getNumArgs(); ++i)
+	{
+		if (llvm::isa<clang::CXXDefaultArgExpr>(construct->getArg(i)) == false)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 Reflection::BufferView ReflectionParser::WriteFieldDefault(const clang::FieldDecl* field, clang::ASTContext& context)
 {
 	const auto initializer = field->getInClassInitializer();
@@ -924,7 +945,7 @@ Reflection::BufferView ReflectionParser::WriteFieldDefault(const clang::FieldDec
 	auto expr = initializer->IgnoreImplicit();
 	while (true)
 	{
-		if (const auto construct = llvm::dyn_cast<clang::CXXConstructExpr>(expr); construct and construct->getNumArgs() == 1)
+		if (const auto construct = llvm::dyn_cast<clang::CXXConstructExpr>(expr); construct and HasSingleExplicitArgument(construct))
 		{
 			expr = construct->getArg(0)->IgnoreImplicit();
 		}
