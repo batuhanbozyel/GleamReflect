@@ -361,92 +361,38 @@ private:
     PrimitiveType mUnderlyingType = PrimitiveType::Invalid;
 };
 
-class BaseClassView
+class BaseClassDescription
 {
 public:
 
-	class Iterator
-	{
-	public:
-		using iterator_category = std::forward_iterator_tag;
-		using value_type = ClassDescription;
-		using difference_type = std::ptrdiff_t;
-		using pointer = const ClassDescription*;
-		using reference = const ClassDescription&;
+	BaseClassDescription() = default;
 
-		explicit Iterator(const uint32_t* hash)
-			: mHash(hash)
-		{
-
-		}
-
-		reference operator*() const
-		{
-			return *IDatabase::GetInstance()->GetClass(*mHash);
-		}
-
-		pointer operator->() const
-		{
-			return IDatabase::GetInstance()->GetClass(*mHash);
-		}
-
-		Iterator& operator++()
-		{
-			++mHash;
-			return *this;
-		}
-
-		bool operator==(const Iterator& other) const
-		{
-			return mHash == other.mHash;
-		}
-
-		bool operator!=(const Iterator& other) const
-		{
-			return mHash != other.mHash;
-		}
-
-	private:
-
-		const uint32_t* mHash = nullptr;
-	};
-
-	BaseClassView(const uint32_t* hashes, size_t size)
-		: mHashes(hashes)
-		, mSize(size)
+	BaseClassDescription(uint32_t typeHash, size_t offset)
+		: mOffset(offset)
+		, mTypeHash(typeHash)
 	{
 
 	}
 
-	const ClassDescription& operator[](size_t pos) const
+	uint32_t TypeHash() const
 	{
-		return *IDatabase::GetInstance()->GetClass(mHashes[pos]);
+		return mTypeHash;
 	}
 
-	size_t size() const
+	size_t GetOffset() const
 	{
-		return mSize;
+		return mOffset;
 	}
 
-	bool empty() const
+	const ClassDescription& ResolveClass() const
 	{
-		return mSize == 0;
-	}
-
-	Iterator begin() const
-	{
-		return Iterator(mHashes);
-	}
-
-	Iterator end() const
-	{
-		return Iterator(mHashes + mSize);
+		return *IDatabase::GetInstance()->GetClass(mTypeHash);
 	}
 
 private:
 
-	const uint32_t* mHashes = nullptr;
-	size_t mSize = 0;
+	size_t mOffset = 0;
+	uint32_t mTypeHash = 0;
 };
 
 class ClassDescription : public MetaDescription
@@ -476,8 +422,8 @@ public:
     
     auto ResolveBaseClasses() const
     {
-		const auto ptr = IDatabase::GetInstance()->GetObject<uint32_t>(mBaseClasses);
-		return BaseClassView{ ptr, mBaseClasses.size / sizeof(uint32_t) };
+		const auto ptr = IDatabase::GetInstance()->GetObject<BaseClassDescription>(mBaseClasses);
+		return DenseArrayView{ ptr, mBaseClasses.size / sizeof(BaseClassDescription) };
 	}
 
 	auto ResolveTemplateParameters() const

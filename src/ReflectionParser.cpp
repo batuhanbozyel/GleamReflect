@@ -485,16 +485,24 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		}
 		
         // Process bases, stored as type hashes so a base can live in another module
-		std::vector<uint32_t> baseClasses;
+		std::vector<Reflection::BaseClassDescription> baseClasses;
+		const auto& layout = astContext.getASTRecordLayout(recordDecl);
         for (const auto& base : recordDecl->bases())
         {
             const auto baseRecord = base.getType()->getAsCXXRecordDecl();
             if (baseRecord && baseRecord->hasAttr<clang::AnnotateAttr>() && baseRecord->isCompleteDefinition())
             {
+				if (base.isVirtual())
+				{
+					std::cerr << recordDecl->getName().str() << " virtual base " << baseRecord->getName().str() << " is not supported" << std::endl;
+					continue;
+				}
+
                 auto baseHandle = HandleRecordDecl(baseRecord);
                 if (baseHandle != InvalidMetaIndex)
                 {
-                    baseClasses.emplace_back(mContext.GetClass(baseHandle).TypeHash());
+                    const auto offset = layout.getBaseClassOffset(baseRecord).getQuantity();
+                    baseClasses.emplace_back(mContext.GetClass(baseHandle).TypeHash(), static_cast<size_t>(offset));
                 }
             }
         }
@@ -650,7 +658,7 @@ ClassHandle ReflectionParser::HandleRecordDecl(const clang::CXXRecordDecl* recor
 		size_t classSize = astContext.getTypeSize(recordType) / 8ul; // Convert bits to bytes
 		auto className = mStringWriter.Write(classNameStr.data(), classNameStr.size());
 		auto qualifiedClassName = mStringWriter.Write(qualifiedClassNameStr.data(), qualifiedClassNameStr.size());
-		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(uint32_t));
+		auto bases = mObjectWriter.Write(baseClasses.data(), baseClasses.size() * sizeof(Reflection::BaseClassDescription));
         auto fields = mObjectWriter.Write(fieldDescs.data(), fieldDescs.size() * sizeof(Reflection::FieldDescription));
 		auto templateParams = mObjectWriter.Write(templateParamDescs.data(), templateParamDescs.size() * sizeof(Reflection::TemplateParameterDescription));
 		auto handle = recordAnnotation.find("GCLASS") != std::string::npos
