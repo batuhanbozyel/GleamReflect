@@ -177,13 +177,18 @@ public:
     {
         return mGuid;
     }
-    
-    const auto ResolveName() const
+
+    const auto ResolveName(const IDatabase& database) const
     {
-		const auto str = IDatabase::GetInstance()->GetString(mName);
+		const auto str = database.GetString(mName);
 		assert(str != nullptr && "Name not found in the database");
 		return std::string_view{ str, mName.size };
     }
+	
+	const auto ResolveName() const
+	{
+		return ResolveName(*IDatabase::GetInstance());
+	}
     
     const auto ResolveQualifiedName() const
     {
@@ -191,21 +196,33 @@ public:
 		assert(str != nullptr && "Qualified name not found in the database");
 		return std::string_view{ str, mQualifiedName.size };
     }
-    
+	
 	template<AttributeType Attrib>
-	bool HasAttribute() const
+	bool HasAttribute(const IDatabase& database) const
 	{
-		const auto attribs = IDatabase::GetInstance()->GetObject<uint32_t>(mAttributes);
+		const auto attribs = database.GetObject<uint32_t>(mAttributes);
 		const auto numAttribs = mAttributes.size / sizeof(uint32_t);
 
-        for (uint32_t i = 0; i < numAttribs; ++i)
-        {
+		for (uint32_t i = 0; i < numAttribs; ++i)
+		{
 			if (attribs[i] == Attrib::description.hash)
 			{
 				return true;
 			}
-        }
-        return false;
+		}
+		return false;
+	}
+    
+	template<AttributeType Attrib>
+	bool HasAttribute() const
+	{
+		return HasAttribute<Attrib>(*IDatabase::GetInstance());
+	}
+
+	template<const auto& Tag>
+	bool HasAttribute(const IDatabase& database) const
+	{
+		return HasAttribute<std::remove_cvref_t<decltype(Tag)>>(database);
 	}
 
 	template<const auto& Tag>
@@ -213,30 +230,36 @@ public:
 	{
 		return HasAttribute<std::remove_cvref_t<decltype(Tag)>>();
 	}
-
+	
 	template<AttributeType Attrib>
-	const Attrib* GetAttribute() const
+	const Attrib* GetAttribute(const IDatabase& database) const
 	{
-		const auto attribs = IDatabase::GetInstance()->GetObject<uint32_t>(mAttributes);
+		const auto attribs = database.GetObject<uint32_t>(mAttributes);
 		const auto numAttribs = mAttributes.size / sizeof(uint32_t);
 
 		for (uint32_t i = 0; i < numAttribs; ++i)
 		{
 			if (attribs[i] == Attrib::description.hash)
 			{
-				const auto view = IDatabase::GetInstance()->GetObject<BufferView>(
-                {
+				const auto view = database.GetObject<BufferView>(
+				{
 					.offset = mAttributes.offset + mAttributes.size + i * sizeof(BufferView),
 					.size = sizeof(BufferView)
-			    });
-                assert(view != nullptr && "Attribute view not found in the database");
+				});
+				assert(view != nullptr && "Attribute view not found in the database");
 
-                const auto attrib = IDatabase::GetInstance()->GetObject<Attrib>(*view);
+				const auto attrib = database.GetObject<Attrib>(*view);
 				assert(attrib != nullptr && "Attribute not found in the database");
-                return attrib;
+				return attrib;
 			}
 		}
-        return nullptr;
+		return nullptr;
+	}
+
+	template<AttributeType Attrib>
+	const Attrib* GetAttribute() const
+	{
+		return GetAttribute<Attrib>(*IDatabase::GetInstance());
 	}
     
 private:
@@ -413,11 +436,16 @@ public:
     {
         
     }
+	
+	auto ResolveFields(const IDatabase& database) const
+	{
+		const auto ptr = database.GetObject<FieldDescription>(mFields);
+		return DenseArrayView{ ptr, mFields.size / sizeof(FieldDescription) };
+	}
     
     auto ResolveFields() const
     {
-		const auto ptr = IDatabase::GetInstance()->GetObject<FieldDescription>(mFields);
-		return DenseArrayView{ ptr, mFields.size / sizeof(FieldDescription) };
+		return ResolveFields(*IDatabase::GetInstance());
     }
     
     auto ResolveBaseClasses() const

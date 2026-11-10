@@ -11,7 +11,18 @@ public:
 	virtual bool Initialize(const std::filesystem::path& path) override
 	{
 		sInstance = this;
+		return Load(path);
+	}
 
+	virtual void Shutdown() override
+	{
+		Unload();
+		sInstance = nullptr;
+	}
+
+	// Reads a database without making it the active instance
+	bool Load(const std::filesystem::path& path)
+	{
 		std::ifstream file(path, std::ios::binary | std::ios::ate);
 		if (not file.is_open())
 		{
@@ -43,7 +54,7 @@ public:
 		return true;
 	}
 
-	virtual void Shutdown() override
+	void Unload()
 	{
 		mBuffer.Free();
 
@@ -54,7 +65,6 @@ public:
 		mEnumGuidToOffsets.clear();
 
 		mArrayHashToOffsets.clear();
-		sInstance = nullptr;
 	}
 
 private:
