@@ -304,14 +304,19 @@ public:
         return mType;
     }
 
-	auto DefaultValue() const
+	auto DefaultValue(const IDatabase& database) const
 	{
 		if (mDefaultValue.size == 0)
 		{
 			return DenseArrayView<uint8_t>{ nullptr, 0 };
 		}
-		const auto ptr = IDatabase::GetInstance()->GetObject<uint8_t>(mDefaultValue);
+		const auto ptr = database.GetObject<uint8_t>(mDefaultValue);
 		return DenseArrayView{ ptr, mDefaultValue.size };
+	}
+
+	auto DefaultValue() const
+	{
+		return DefaultValue(*IDatabase::GetInstance());
 	}
     
 private:
